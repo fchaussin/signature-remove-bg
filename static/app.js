@@ -8,8 +8,9 @@ const t = i18n.t.bind(i18n);
  *  Table of contents
  *  -----------------
  *   0. i18n alias           — t() shorthand (i18n.js loaded before this file)
- *   1. Constants            — BG_STYLES, ZOOM_SIZE, MIN_CROP
- *   2. Helpers              — drawCheckerboard, fitScale, debounce, initBgPicker
+ *   1. Constants            — BG_STYLES, ZOOM_SIZE, MIN_CROP, validation sets
+ *   2. Helpers              — drawCheckerboard, fitScale, debounce, initBgPicker,
+ *                             safeObjectURL, revokeObjectURL
  *   3. Overlay manager      — register / open / close overlays, Escape key
  *   4. DOM references       — single unified `dom` object
  *   5. Mutable state        — every `let` in one block, grouped by feature
@@ -37,6 +38,14 @@ const BG_STYLES = {
 const ZOOM_SIZE = 400;
 const MIN_CROP  = 20;
 
+// Whitelists for input validation (OWASP A03/A08)
+const VALID_BG_KEYS    = new Set(Object.keys(BG_STYLES));
+const VALID_EDGES      = new Set(['top', 'bottom', 'left', 'right']);
+const VALID_FORMATS    = new Set(['png', 'webp']);
+const VALID_MODES      = new Set(['auto', 'dark', 'blue']);
+const ALLOWED_TYPES    = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
+const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
+
 
 /* ===================================================================
  *  2. Helpers
@@ -49,10 +58,12 @@ function initBgPicker(container, target) {
   picker.addEventListener('click', e => {
     const swatch = e.target.closest('.bg-swatch');
     if (!swatch) return;
+    const bg = swatch.dataset.bg;
+    if (!VALID_BG_KEYS.has(bg)) return; // reject unknown keys (OWASP A03)
     e.stopPropagation();
     picker.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
     swatch.classList.add('active');
-    target.style.background = BG_STYLES[swatch.dataset.bg];
+    target.style.background = BG_STYLES[bg];
   });
 }
 
@@ -81,6 +92,18 @@ function debounce(fn, ms) {
   };
   wrapped.cancel = () => clearTimeout(timer);
   return wrapped;
+}
+
+/**
+ * Create a blob URL and revoke the previous one stored under the same key.
+ * Prevents memory leaks from accumulated object URLs (OWASP A04).
+ */
+const _objectURLs = {};
+function safeObjectURL(key, blob) {
+  if (_objectURLs[key]) URL.revokeObjectURL(_objectURLs[key]);
+  const url = URL.createObjectURL(blob);
+  _objectURLs[key] = url;
+  return url;
 }
 
 
@@ -237,10 +260,24 @@ let contrastScale    = 1;
  *  6. Core functions
  * =================================================================== */
 
+/** Validate file client-side before upload (OWASP A04 — early rejection). */
+function validateFile(f) {
+  if (!f) return null;
+  if (!ALLOWED_TYPES.includes(f.type)) return 'INVALID_FILE';
+  if (f.size > MAX_CLIENT_BYTES) return 'FILE_TOO_LARGE';
+  return null;
+}
+
 function loadFile(f) {
   if (!f) return;
+  const err = validateFile(f);
+  if (err) {
+    dom.editor.classList.add('visible');
+    dom.statusLabel.textContent = t('error.' + err);
+    return;
+  }
   currentFile = f;
-  dom.originalImg.src = URL.createObjectURL(f);
+  dom.originalImg.src = safeObjectURL('original', f);
   dom.originalImg.onload = () => {
     naturalW = dom.originalImg.naturalWidth;
     naturalH = dom.originalImg.naturalHeight;
@@ -290,7 +327,7 @@ async function extractSignature() {
       return;
     }
     lastExtractedBlob = await res.blob();
-    dom.extractedImg.src = URL.createObjectURL(lastExtractedBlob);
+    dom.extractedImg.src = safeObjectURL('extracted', lastExtractedBlob);
     dom.statusLabel.textContent = '';
   } catch {
     dom.statusLabel.textContent = t('error.NETWORK');
@@ -299,7 +336,7 @@ async function extractSignature() {
 
 function updateExtracted(blob) {
   lastExtractedBlob = blob;
-  dom.extractedImg.src = URL.createObjectURL(blob);
+  dom.extractedImg.src = safeObjectURL('extracted', blob);
 }
 
 function getMimeType() {
@@ -307,9 +344,11 @@ function getMimeType() {
 }
 
 function downloadExtracted() {
+  const fmt = dom.param('format').value;
+  if (!VALID_FORMATS.has(fmt)) return; // reject tampered value (OWASP A03)
   const a = document.createElement('a');
   a.href = dom.extractedImg.src;
-  a.download = `signature.${dom.param('format').value}`;
+  a.download = `signature.${fmt}`;
   a.click();
 }
 
@@ -422,12 +461,14 @@ function initCrop() {
     }
   }
 
-  // Handle drag
+  // Handle drag — validate edge against whitelist (OWASP A08)
   dom.cropArea.addEventListener('mousedown', e => {
     const handle = e.target.closest('.crop-handle');
     if (!handle) return;
+    const edge = handle.dataset.edge;
+    if (!VALID_EDGES.has(edge)) return;
     e.preventDefault();
-    activeHandle = handle.dataset.edge;
+    activeHandle = edge;
     dragStartX   = e.clientX;
     dragStartY   = e.clientY;
     dragStartVal = cropEdges[activeHandle];
@@ -464,7 +505,7 @@ function initCrop() {
       updateCropUI();
       openOverlay(dom.cropOverlay);
     };
-    cropImg.src = URL.createObjectURL(currentFile);
+    cropImg.src = safeObjectURL('cropSrc', currentFile);
   };
 
   // Cancel
@@ -490,7 +531,7 @@ function initCrop() {
 
     out.toBlob(blob => {
       currentFile = new File([blob], 'cropped.png', { type: blob.type });
-      dom.originalImg.src = URL.createObjectURL(blob);
+      dom.originalImg.src = safeObjectURL('original', blob);
       dom.originalImg.onload = () => {
         naturalW = dom.originalImg.naturalWidth;
         naturalH = dom.originalImg.naturalHeight;
@@ -559,7 +600,7 @@ function initContrast() {
       renderContrastPreview();
       openOverlay(dom.contrastOverlay);
     };
-    contrastImg.src = URL.createObjectURL(lastExtractedBlob);
+    contrastImg.src = safeObjectURL('contrastSrc', lastExtractedBlob);
   };
 
   // Cancel
@@ -640,22 +681,25 @@ initContrast();
 // i18n — detect browser language and apply translations
 i18n.init();
 
-// Load server defaults and apply to controls
+// Load server defaults and apply to controls (OWASP A08 — validate response shape)
 fetch('/config')
   .then(res => res.ok ? res.json() : null)
   .then(cfg => {
-    if (!cfg) return;
-    const mode = dom.param('mode');
-    const threshold = dom.param('threshold');
-    const blueTolerance = dom.param('blue_tolerance');
-    const format = dom.param('format');
+    if (!cfg || typeof cfg !== 'object') return;
 
-    mode.value = cfg.mode;
-    threshold.value = cfg.threshold;
-    blueTolerance.value = cfg.blue_tolerance;
-    format.value = cfg.format;
-
-    dom.display('threshold').textContent = cfg.threshold;
-    dom.display('blue_tolerance').textContent = cfg.blue_tolerance;
+    if (VALID_MODES.has(cfg.mode)) {
+      dom.param('mode').value = cfg.mode;
+    }
+    if (VALID_FORMATS.has(cfg.format)) {
+      dom.param('format').value = cfg.format;
+    }
+    if (Number.isInteger(cfg.threshold) && cfg.threshold >= 50 && cfg.threshold <= 250) {
+      dom.param('threshold').value = cfg.threshold;
+      dom.display('threshold').textContent = cfg.threshold;
+    }
+    if (Number.isInteger(cfg.blue_tolerance) && cfg.blue_tolerance >= 20 && cfg.blue_tolerance <= 200) {
+      dom.param('blue_tolerance').value = cfg.blue_tolerance;
+      dom.display('blue_tolerance').textContent = cfg.blue_tolerance;
+    }
   })
   .catch(() => {});

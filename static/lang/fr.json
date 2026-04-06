@@ -1,6 +1,6 @@
 {
   "app.title": "Extracteur de signatures",
-  "dropzone.hint": "Glissez un scan, une capture ou une image ici, <strong>cliquez pour choisir un fichier</strong> ou <kbd>Ctrl+V</kbd> n'importe o\u00f9 pour coller",
+  "dropzone.hint": "Glissez un scan, une capture ou une image ici,<br> <strong>cliquez pour choisir un fichier</strong><br> ou <kbd>Ctrl+V</kbd> n'importe o\u00f9 pour coller",
   "mode.label": "Mode",
   "mode.auto": "Auto (noir + bleu)",
   "mode.dark": "Noir uniquement",
