@@ -39,6 +39,7 @@ from secure.headers import (
     ContentSecurityPolicy,
     PermissionsPolicy,
     XFrameOptions,
+    ReferrerPolicy,
 )
 
 
@@ -142,14 +143,15 @@ secure_headers = Secure(
         .camera("'none'")
         .microphone("'none'")
         .geolocation("'none'"),
-    x_frame_options=XFrameOptions("DENY"),
+    xfo=XFrameOptions().deny(),
+    referrer=ReferrerPolicy().strict_origin_when_cross_origin(),
 )
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
-    await secure_headers.set_headers_async(response)
+    secure_headers.set_headers(response)
     return response
 
 
