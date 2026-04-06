@@ -60,12 +60,6 @@ After uploading, a settings panel appears with instant preview:
 
 Each change triggers automatic re-extraction (debounced at 300 ms).
 
-### Actual-size zoom
-
-![Zoom popup](static/screenshots/zoom.png)
-
-Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan.
-
 ### Cropping
 
 ![Crop tool](static/screenshots/crop.png)
@@ -77,6 +71,12 @@ The **Crop** button (on the original panel) opens a cropping tool with 4 edge ha
 ![Contrast tool](static/screenshots/contrast.png)
 
 The **Enhance contrast** button opens a tool to darken the signature and boost its opacity, useful for faint scans.
+
+### Actual-size zoom
+
+![Zoom popup](static/screenshots/zoom.png)
+
+Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan.
 
 ### Signature preview
 
