@@ -4,5 +4,5 @@ uvicorn==0.34.0
 python-multipart==0.0.22
 Pillow==12.1.1
 numpy==2.2.1
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 secure==1.0.1
