@@ -149,8 +149,8 @@ const dom = {
   contrastOverlay: document.getElementById('contrast'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
-  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'format']),
-  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'intensity']),
+  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'smoothing', 'format']),
+  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'smoothing', 'intensity']),
   param(name) {
     if (!this._VALID_PARAMS.has(name)) return null;
     return this.editor.querySelector(`[data-param="${name}"]`);
