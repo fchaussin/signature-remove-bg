@@ -1,7 +1,22 @@
 """
 Signature Remove Background — Extract dark/blue signatures from white backgrounds.
 Lightweight FastAPI service (~30-50 MB RAM), no ML.
+
+Sections
+--------
+ 1. Imports
+ 2. Configuration      — env vars, validation, constants
+ 3. Logging            — logger setup, filename sanitizer
+ 4. App setup          — FastAPI instance, CORS, security headers, static files
+ 5. Extraction logic   — extract_signature()
+ 6. Upload helpers     — read_upload()
+ 7. Routes             — /health, /config, /extract, /
+ 8. Entrypoint         — uvicorn
 """
+
+# ---------------------------------------------------------------------------
+#  1. Imports
+# ---------------------------------------------------------------------------
 
 import io
 import logging
@@ -20,31 +35,56 @@ from fastapi.staticfiles import StaticFiles
 import numpy as np
 from PIL import Image
 
+
 # ---------------------------------------------------------------------------
-# Configuration (environment variables with sensible defaults)
+#  2. Configuration
 # ---------------------------------------------------------------------------
 
-HOST = os.environ.get("HOST", "0.0.0.0")
-PORT = int(os.environ.get("PORT", "8000"))
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "50"))
-MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
-MAX_IMAGE_PIXELS = int(os.environ.get("MAX_IMAGE_PIXELS", str(50_000_000)))  # ~7000x7000
-MAX_IMAGE_DIMENSION = int(os.environ.get("MAX_IMAGE_DIMENSION", "10000"))
-
-# Extraction defaults (exposed to frontend via /config)
-DEFAULT_MODE = os.environ.get("DEFAULT_MODE", "auto")
-DEFAULT_THRESHOLD = int(os.environ.get("DEFAULT_THRESHOLD", "220"))
-DEFAULT_BLUE_TOLERANCE = int(os.environ.get("DEFAULT_BLUE_TOLERANCE", "80"))
-DEFAULT_FORMAT = os.environ.get("DEFAULT_FORMAT", "png")
-
-# Pillow decompression bomb protection (OWASP A04)
-Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
-
+VALID_MODES = {"auto", "dark", "blue"}
+VALID_FORMATS = {"png", "webp"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
+
+def _int_env(name: str, default: int) -> int:
+    """Read an integer from env, fall back to *default* on missing or invalid input."""
+    try:
+        return int(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _choice_env(name: str, default: str, choices: set[str]) -> str:
+    """Read a string from env, fall back to *default* if value is not in *choices*."""
+    raw = os.environ.get(name, default)
+    return raw if raw in choices else default
+
+
+# -- Server ------------------------------------------------------------------
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = _int_env("PORT", 8000)
+
+# -- Upload limits -----------------------------------------------------------
+MAX_UPLOAD_MB       = _int_env("MAX_UPLOAD_MB", 50)
+MAX_UPLOAD_BYTES    = MAX_UPLOAD_MB * 1024 * 1024
+MAX_IMAGE_PIXELS    = _int_env("MAX_IMAGE_PIXELS", 50_000_000)   # ~7 000 × 7 000
+MAX_IMAGE_DIMENSION = _int_env("MAX_IMAGE_DIMENSION", 10_000)
+UPLOAD_CHUNK_SIZE   = 64 * 1024  # 64 KB per read
+
+# -- Extraction defaults (exposed to frontend via /config) -------------------
+DEFAULT_MODE           = _choice_env("DEFAULT_MODE", "auto", VALID_MODES)
+DEFAULT_FORMAT         = _choice_env("DEFAULT_FORMAT", "png", VALID_FORMATS)
+DEFAULT_THRESHOLD      = max(50, min(250, _int_env("DEFAULT_THRESHOLD", 220)))
+DEFAULT_BLUE_TOLERANCE = max(20, min(200, _int_env("DEFAULT_BLUE_TOLERANCE", 80)))
+
+# -- CORS --------------------------------------------------------------------
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
+
+# -- Pillow safety -----------------------------------------------------------
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+
+
 # ---------------------------------------------------------------------------
-# Logging
+#  3. Logging
 # ---------------------------------------------------------------------------
 
 logging.basicConfig(
@@ -53,59 +93,69 @@ logging.basicConfig(
 )
 logger = logging.getLogger("signature-remove-bg")
 
-# Sanitize user-supplied filenames before logging (OWASP A03 — log injection)
 _SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._\-]")
 
 
 def _safe_filename(name: str | None) -> str:
+    """Sanitize a user-supplied filename for safe logging (OWASP A03)."""
     if not name:
         return "<empty>"
     return _SAFE_FILENAME_RE.sub("_", name)[:100]
 
 
 # ---------------------------------------------------------------------------
-# App
+#  4. App setup
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Signature Remove Background",
     version="0.1.0",
-    docs_url=None,    # Disable /docs (OWASP A05 — security misconfiguration)
-    redoc_url=None,   # Disable /redoc
-    openapi_url=None, # Disable /openapi.json
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
+
+# -- CORS --------------------------------------------------------------------
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],  # Only what's needed (OWASP A05)
+    allow_headers=["Content-Type"],
 )
 
+# -- Security headers (OWASP A05) -------------------------------------------
 
-# Security headers middleware (OWASP A05)
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response: Response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = (
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options":        "DENY",
+    "Referrer-Policy":        "strict-origin-when-cross-origin",
+    "Permissions-Policy":     "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": (
         "default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' blob:; "
         "script-src 'self'"
-    )
+    ),
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers[header] = value
     return response
 
+
+# -- Static files ------------------------------------------------------------
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # ---------------------------------------------------------------------------
-# Extraction logic
+#  5. Extraction logic
 # ---------------------------------------------------------------------------
 
 def extract_signature(
@@ -117,60 +167,101 @@ def extract_signature(
     """
     Extract signature pixels and make the background transparent.
 
-    Modes:
-      - "dark"  : capture all dark pixels (black ink, classic pen)
-      - "blue"  : capture blue-tinted pixels only
-      - "auto"  : combine dark + blue to catch both
+    Modes
+    -----
+    - ``"dark"``  — capture all dark pixels (black ink, classic pen)
+    - ``"blue"``  — capture blue-tinted pixels only
+    - ``"auto"``  — combine dark + blue to catch both
     """
     img = image.convert("RGB")
     pixels = np.array(img, dtype=np.int16)
     r, g, b = pixels[:, :, 0], pixels[:, :, 1], pixels[:, :, 2]
 
-    # "Dark" mask: pixels whose luminosity falls below the threshold
+    # "Dark" mask: luminosity below threshold (BT.601 formula)
     luminosity = 0.299 * r + 0.587 * g + 0.114 * b
     mask_dark = luminosity < threshold
 
-    # "Blue" mask: blue channel clearly dominates the others
-    mask_blue = (
-        (b > blue_tolerance)
-        & (b - r > 30)
-        & (b - g > 20)
-    )
+    # "Blue" mask: blue channel clearly dominates red and green
+    mask_blue = (b > blue_tolerance) & (b - r > 30) & (b - g > 20)
 
+    # Combine masks based on mode
     if mode == "dark":
         mask = mask_dark
     elif mode == "blue":
         mask = mask_blue
-    else:  # auto
+    else:
         mask = mask_dark | mask_blue
 
-    # Build RGBA: signature pixels opaque, everything else transparent
+    # Build RGBA output
     alpha = np.where(mask, 255, 0).astype(np.uint8)
-
-    result = img.convert("RGBA")
-    result_pixels = np.array(result)
-    result_pixels[:, :, 3] = alpha
-    return Image.fromarray(result_pixels)
+    result = np.array(img.convert("RGBA"))
+    result[:, :, 3] = alpha
+    return Image.fromarray(result)
 
 
 # ---------------------------------------------------------------------------
-# Routes
+#  6. Upload helpers
+# ---------------------------------------------------------------------------
+
+async def read_upload(file: UploadFile, safe_name: str) -> bytes | None:
+    """
+    Read an uploaded file with streaming size check.
+
+    Returns the file contents on success, or ``None`` after sending
+    an error response to the caller (signalled by raising).
+    """
+    chunks: list[bytes] = []
+    total = 0
+
+    while True:
+        chunk = await file.read(UPLOAD_CHUNK_SIZE)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            logger.warning("Upload rejected: >%d MB for %s", MAX_UPLOAD_MB, safe_name)
+            return None
+        chunks.append(chunk)
+
+    return b"".join(chunks)
+
+
+def open_image(contents: bytes, safe_name: str) -> Image.Image | None:
+    """Open and verify an image from raw bytes. Returns ``None`` on failure."""
+    try:
+        image = Image.open(io.BytesIO(contents))
+        image.verify()
+        image = Image.open(io.BytesIO(contents))
+    except Exception:
+        logger.warning("Invalid image: %s", safe_name)
+        return None
+
+    w, h = image.size
+    if w > MAX_IMAGE_DIMENSION or h > MAX_IMAGE_DIMENSION:
+        logger.warning("Image too large: %dx%d for %s", w, h, safe_name)
+        return None
+
+    return image
+
+
+# ---------------------------------------------------------------------------
+#  7. Routes
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
 async def health():
-    """Health check endpoint for monitoring and Docker HEALTHCHECK."""
+    """Health check for monitoring and Docker HEALTHCHECK."""
     return {"status": "ok"}
 
 
 @app.get("/config")
 async def config():
-    """Expose non-sensitive defaults to the frontend."""
+    """Expose non-sensitive extraction defaults to the frontend."""
     return {
-        "mode": DEFAULT_MODE,
-        "threshold": DEFAULT_THRESHOLD,
+        "mode":           DEFAULT_MODE,
+        "threshold":      DEFAULT_THRESHOLD,
         "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
-        "format": DEFAULT_FORMAT,
+        "format":         DEFAULT_FORMAT,
     }
 
 
@@ -178,46 +269,38 @@ async def config():
 async def extract(
     file: UploadFile = File(...),
     mode: str = Query(DEFAULT_MODE, enum=["auto", "dark", "blue"]),
-    threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250, description="Luminosity threshold (dark mode)"),
-    blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200, description="Blue sensitivity"),
+    threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250),
+    blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
 ):
-    """Extract the signature from a scanned image and return a transparent PNG/WebP."""
+    """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
     safe_name = _safe_filename(file.filename)
 
-    # Validate content-type before reading (OWASP A08)
+    # 1. Validate content-type
     if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
         logger.warning("Rejected content-type %s for %s", file.content_type, safe_name)
         return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
 
-    contents = await file.read()
+    # 2. Read with streaming size limit
+    contents = await read_upload(file, safe_name)
+    if contents is None:
+        return JSONResponse({"code": "FILE_TOO_LARGE"}, status_code=400)
     if not contents:
         return JSONResponse({"code": "FILE_REQUIRED"}, status_code=400)
 
-    if len(contents) > MAX_UPLOAD_BYTES:
-        logger.warning("Upload rejected: %d bytes (limit %d MB) for %s", len(contents), MAX_UPLOAD_MB, safe_name)
-        return JSONResponse({"code": "FILE_TOO_LARGE"}, status_code=400)
-
-    try:
-        image = Image.open(io.BytesIO(contents))
-        image.verify()
-        image = Image.open(io.BytesIO(contents))
-    except Exception:
-        logger.warning("Invalid image upload: %s", safe_name)
+    # 3. Open and validate image
+    image = open_image(contents, safe_name)
+    if image is None:
         return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
 
-    # Dimension guard (OWASP A04 — resource exhaustion)
-    w, h = image.size
-    if w > MAX_IMAGE_DIMENSION or h > MAX_IMAGE_DIMENSION:
-        logger.warning("Image too large: %dx%d for %s", w, h, safe_name)
-        return JSONResponse({"code": "IMAGE_TOO_LARGE"}, status_code=400)
-
+    # 4. Extract signature
     try:
         result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance)
     except Exception:
         logger.exception("Extraction failed for %s", safe_name)
         return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
 
+    # 5. Encode and return
     buf = io.BytesIO()
     result.save(buf, format=format.upper(), optimize=True)
     buf.seek(0)
@@ -234,6 +317,10 @@ async def ui():
     """Serve the minimal web UI."""
     return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
+
+# ---------------------------------------------------------------------------
+#  8. Entrypoint
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import uvicorn
