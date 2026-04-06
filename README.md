@@ -28,11 +28,11 @@ cd signature-remove-bg
 docker compose up -d
 ```
 
-The service is available at `http://localhost:8123`.
+The service is available at `http://localhost:8000`.
 
 ## Web interface
 
-Open `http://localhost:8123` in a browser.
+Open `http://localhost:8000` in a browser.
 
 ### Uploading an image
 
@@ -135,26 +135,26 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 
 ```bash
 # Auto mode (dark + blue), default settings
-curl -X POST "http://localhost:8123/extract" \
+curl -X POST "http://localhost:8000/extract" \
   -F "file=@scan.jpg" -o signature.png
 
 # Blue signatures only
-curl -X POST "http://localhost:8123/extract?mode=blue" \
+curl -X POST "http://localhost:8000/extract?mode=blue" \
   -F "file=@scan.jpg" -o signature.png
 
 # Adjusted threshold for grayish scans
-curl -X POST "http://localhost:8123/extract?threshold=200" \
+curl -X POST "http://localhost:8000/extract?threshold=200" \
   -F "file=@scan.jpg" -o signature.png
 
 # WebP output
-curl -X POST "http://localhost:8123/extract?format=webp" \
+curl -X POST "http://localhost:8000/extract?format=webp" \
   -F "file=@scan.jpg" -o signature.webp
 ```
 
 **Health check**:
 
 ```bash
-curl http://localhost:8123/health
+curl http://localhost:8000/health
 # {"status":"ok"}
 ```
 
@@ -181,8 +181,9 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 
 | Variable | Default | Description |
 |---|---|---|
-| `HOST` | `0.0.0.0` | Server bind address |
-| `PORT` | `8000` | Server port |
+| `HOST` | `0.0.0.0` | Server bind address (internal) |
+| `PORT` | `8000` | Server port (internal) |
+| `PUBLIC_PORT` | `8000` | Port exposed on host machine |
 | `MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
