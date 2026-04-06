@@ -33,5 +33,6 @@
   "error.PROCESSING_FAILED": "(erreur : l\u2019extraction a \u00e9chou\u00e9)",
   "error.NETWORK": "(erreur : probl\u00e8me r\u00e9seau)",
   "error.UNKNOWN": "(erreur : erreur inattendue)",
-  "error.FILE_TOO_LARGE": "(erreur : fichier trop volumineux, 20 Mo max)"
+  "error.FILE_TOO_LARGE": "(erreur : fichier trop volumineux, 50 Mo max)",
+  "error.IMAGE_TOO_LARGE": "(erreur : dimensions image trop grandes, 10000px max)"
 }

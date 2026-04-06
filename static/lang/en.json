@@ -33,5 +33,6 @@
   "error.PROCESSING_FAILED": "(error: extraction failed)",
   "error.NETWORK": "(error: network failure)",
   "error.UNKNOWN": "(error: unexpected error)",
-  "error.FILE_TOO_LARGE": "(error: file too large, 20 MB max)"
+  "error.FILE_TOO_LARGE": "(error: file too large, 50 MB max)",
+  "error.IMAGE_TOO_LARGE": "(error: image dimensions too large, 10000px max)"
 }

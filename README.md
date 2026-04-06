@@ -128,6 +128,7 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | 400 | `FILE_REQUIRED` | No file provided |
 | 400 | `INVALID_FILE` | Unreadable or invalid image |
 | 400 | `FILE_TOO_LARGE` | File exceeds size limit |
+| 400 | `IMAGE_TOO_LARGE` | Image dimensions exceed limit |
 | 500 | `PROCESSING_FAILED` | Unexpected extraction error |
 
 **Examples**:
@@ -176,14 +177,16 @@ requirements.txt
 
 ## Configuration
 
-Environment variables (all optional, with sensible defaults):
+Environment variables (all optional, with sensible defaults). Can be set via a `.env` file (see `.env.example`):
 
 | Variable | Default | Description |
 |---|---|---|
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8000` | Server port |
-| `MAX_UPLOAD_MB` | `20` | Maximum upload file size in MB |
+| `MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
+| `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
+| `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
 
 ## Technical specifications
 
