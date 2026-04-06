@@ -8,7 +8,7 @@ This document explains **why** each dependency is used, **how** it integrates, a
 
 All Python dependencies are pinned in `requirements.txt` for reproducible builds.
 
-### FastAPI `0.115.6`
+### FastAPI `0.135.3`
 
 - **Why**: Lightweight async web framework with built-in request validation (Query params with `enum`, `ge`, `le`), automatic OpenAPI schema, and native Starlette middleware support.
 - **How**: Single `app.py` — defines routes (`/extract`, `/config`, `/health`, `/`) and middlewares (CORS, security headers).
@@ -20,13 +20,13 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 - **How**: Used as the CMD in Dockerfile and in `__main__` for local dev. Single-worker by default (sufficient for this lightweight service).
 - **Watch out**: For multi-worker deployments, switch to `gunicorn` with `uvicorn.workers.UvicornWorker`. Not needed here given the low resource footprint.
 
-### python-multipart `0.0.20`
+### python-multipart `0.0.22`
 
 - **Why**: Required by FastAPI to parse `multipart/form-data` file uploads (`UploadFile`).
 - **How**: Implicit — FastAPI imports it internally when handling file uploads. Not imported directly in `app.py`.
 - **Watch out**: This is a mandatory peer dependency of FastAPI for file uploads. If removed, `/extract` will crash at runtime with an import error.
 
-### Pillow `11.1.0`
+### Pillow `12.1.1`
 
 - **Why**: Image loading, format conversion (RGB/RGBA), verification (`image.verify()`), and output encoding (PNG/WebP).
 - **How**: Used in `extract_signature()` and `open_image()`. Also provides `Image.MAX_IMAGE_PIXELS` for decompression bomb protection.
