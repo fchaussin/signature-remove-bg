@@ -164,18 +164,24 @@ curl http://localhost:8000/health
 app.py                 # FastAPI backend + extraction logic
 static/
   index.html           # HTML structure
-  style.css            # Styles
-  app.js               # Frontend logic
+  style.css            # Styles (CSS variables, responsive, a11y)
+  app.js               # Frontend logic (OWASP-hardened)
   i18n.js              # Internationalization module
   vendor/
     purify.min.js      # DOMPurify (HTML sanitization)
   lang/
     en.json            # English translations
     fr.json            # French translations
+  screenshots/         # README screenshots
 Dockerfile
 docker-compose.yml
 requirements.txt
+.env.example           # Environment variables reference
 DEPENDENCIES.md        # Why each dependency is used and upgrade notes
+.github/
+  dependabot.yml       # Automated dependency updates (pip + Docker)
+  workflows/
+    security-audit.yml # Weekly pip-audit for known CVEs
 ```
 
 ## Configuration

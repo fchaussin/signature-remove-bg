@@ -50,8 +50,9 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 ### secure `1.0.1`
 
 - **Why**: Sets HTTP security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) using typed builders instead of error-prone raw strings. Zero external dependencies.
-- **How**: `Secure()` object configured with `ContentSecurityPolicy`, `PermissionsPolicy`, `XFrameOptions` builders. Applied via `set_headers_async()` in a Starlette middleware.
+- **How**: `Secure()` object configured with `ContentSecurityPolicy`, `PermissionsPolicy`, `XFrameOptions`, `ReferrerPolicy` builders. Applied via `set_headers()` (synchronous) in a Starlette middleware.
 - **Watch out**:
+  - The `Secure()` constructor uses short parameter names that differ from the header names: `xfo` (X-Frame-Options), `referrer` (Referrer-Policy), `csp` (Content-Security-Policy), `permissions` (Permissions-Policy), `xcto` (X-Content-Type-Options). Refer to the [source](https://github.com/TypeError/secure) for the full list.
   - Default headers from `secure` are strict. Our custom CSP allows `'unsafe-inline'` for styles and `blob:` for images — both are required for the app to function.
   - When upgrading, verify that new default headers don't break functionality (e.g., a future default `Strict-Transport-Security` header would enforce HTTPS, which may not be configured in dev).
 
