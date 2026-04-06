@@ -175,6 +175,7 @@ static/
 Dockerfile
 docker-compose.yml
 requirements.txt
+DEPENDENCIES.md        # Why each dependency is used and upgrade notes
 ```
 
 ## Configuration
