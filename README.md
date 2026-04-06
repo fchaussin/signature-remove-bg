@@ -60,15 +60,6 @@ After uploading, a settings panel appears with instant preview:
 
 Each change triggers automatic re-extraction (debounced at 300 ms).
 
-### Signature preview
-
-The preview area displays the extracted signature. A background color picker lets you visualize the result on different backgrounds:
-
-- **White** (default) — simulates final use on a document
-- **Checker** — shows alpha channel transparency
-- **Dark** — for verifying light signatures
-- **Light blue** — simulates a colored document background
-
 ### Actual-size zoom
 
 ![Zoom popup](static/screenshots/zoom.png)
@@ -86,6 +77,15 @@ The **Crop** button (on the original panel) opens a cropping tool with 4 edge ha
 ![Contrast tool](static/screenshots/contrast.png)
 
 The **Enhance contrast** button opens a tool to darken the signature and boost its opacity, useful for faint scans.
+
+### Signature preview
+
+The preview area displays the extracted signature. A background color picker lets you visualize the result on different backgrounds:
+
+- **White** (default) — simulates final use on a document
+- **Checker** — shows alpha channel transparency
+- **Dark** — for verifying light signatures
+- **Light blue** — simulates a colored document background
 
 ### Download
 
