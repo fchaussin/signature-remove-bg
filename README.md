@@ -2,9 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Micro-service for extracting handwritten signatures (dark/blue ink) from scanned white backgrounds. Returns a transparent PNG or WebP.
-
-**No ML model** — simple colorimetric thresholding with NumPy/Pillow. Ultra-lightweight (~30 MB RAM idle).
+Self-hosted signature background remover — ultra-lightweight alternative to heavy ML-based tools like rembg. Remove background from handwritten signatures (dark or blue ink) and export as transparent PNG or WebP. No machine learning, no cloud, no GPU: runs in Docker with ~30 MB RAM and processes images in under 100 ms. Includes a REST API and a built-in web UI.
 
 ## Comparison with ML solutions
 
