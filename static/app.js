@@ -323,6 +323,7 @@ async function extractSignature() {
     mode:           dom.param('mode').value,
     threshold:      dom.param('threshold').value,
     blue_tolerance: dom.param('blue_tolerance').value,
+    smoothing:      dom.param('smoothing').value,
     format:         dom.param('format').value
   });
 
@@ -674,6 +675,7 @@ document.addEventListener('paste', e => {
 // Editor sliders & selects
 bindSlider('threshold');
 bindSlider('blue_tolerance');
+bindSlider('smoothing');
 dom.param('mode').onchange   = debouncedExtract;
 dom.param('format').onchange = debouncedExtract;
 
@@ -708,6 +710,10 @@ fetch('/config')
     if (Number.isInteger(cfg.blue_tolerance) && cfg.blue_tolerance >= 20 && cfg.blue_tolerance <= 200) {
       dom.param('blue_tolerance').value = cfg.blue_tolerance;
       dom.display('blue_tolerance').textContent = cfg.blue_tolerance;
+    }
+    if (Number.isInteger(cfg.smoothing) && cfg.smoothing >= 0 && cfg.smoothing <= 100) {
+      dom.param('smoothing').value = cfg.smoothing;
+      dom.display('smoothing').textContent = cfg.smoothing;
     }
   })
   .catch(() => {});

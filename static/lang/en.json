@@ -7,6 +7,7 @@
   "mode.blue": "Blue only",
   "threshold.label": "Luminosity threshold:",
   "blue_tolerance.label": "Blue tolerance:",
+  "smoothing.label": "Edge smoothing:",
   "format.label": "Format",
   "panel.original": "Original",
   "panel.extracted": "Extracted signature",
