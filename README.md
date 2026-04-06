@@ -26,7 +26,7 @@ cd signature-remove-bg
 docker compose up -d
 ```
 
-The service is available at `http://localhost:8000`.
+The service is available at `http://localhost:8000` (the port is configurable via `.env`).
 
 ## Web interface
 
