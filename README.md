@@ -167,6 +167,8 @@ static/
   style.css            # Styles
   app.js               # Frontend logic
   i18n.js              # Internationalization module
+  vendor/
+    purify.min.js      # DOMPurify (HTML sanitization)
   lang/
     en.json            # English translations
     fr.json            # French translations

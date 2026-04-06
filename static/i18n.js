@@ -1,42 +1,18 @@
 'use strict';
 
+/**
+ * DOMPurify configuration — strict whitelist for i18n HTML strings.
+ * Only formatting tags allowed, no attributes (blocks onclick, onerror, href, etc.).
+ */
+const I18N_PURIFY_CONFIG = {
+  ALLOWED_TAGS: ['strong', 'em', 'br', 'kbd', 'b', 'i', 'span'],
+  ALLOWED_ATTR: [],
+};
+
 window.i18n = {
   lang: 'en',
   locale: {},
   fallback: {},
-
-  /** Allowed HTML tags in data-i18n-html values (whitelist). */
-  _ALLOWED_TAGS: ['strong', 'em', 'br', 'kbd', 'b', 'i', 'span'],
-
-  /** Sanitize HTML: strip all tags except whitelisted ones, remove all attributes. */
-  _sanitize(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const allowed = this._ALLOWED_TAGS;
-
-    function walk(node) {
-      const children = Array.from(node.childNodes);
-      for (const child of children) {
-        if (child.nodeType === Node.TEXT_NODE) continue;
-        if (child.nodeType === Node.ELEMENT_NODE) {
-          if (!allowed.includes(child.tagName.toLowerCase())) {
-            // Replace forbidden tag with its text content
-            child.replaceWith(document.createTextNode(child.textContent));
-          } else {
-            // Strip all attributes from allowed tags
-            while (child.attributes.length > 0) {
-              child.removeAttribute(child.attributes[0].name);
-            }
-            walk(child);
-          }
-        } else {
-          child.remove();
-        }
-      }
-    }
-
-    walk(doc.body);
-    return doc.body.innerHTML;
-  },
 
   /** Escape HTML entities in a string (for safe param interpolation). */
   _escape(str) {
@@ -95,7 +71,7 @@ window.i18n = {
       el.textContent = this.t(el.dataset.i18n);
     });
     document.querySelectorAll('[data-i18n-html]').forEach(el => {
-      el.innerHTML = this._sanitize(this.t(el.dataset.i18nHtml));
+      el.innerHTML = DOMPurify.sanitize(this.t(el.dataset.i18nHtml), I18N_PURIFY_CONFIG);
     });
     document.querySelectorAll('[data-i18n-title]').forEach(el => {
       el.title = this.t(el.dataset.i18nTitle);
