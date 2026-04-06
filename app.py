@@ -34,6 +34,12 @@ from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, Res
 from fastapi.staticfiles import StaticFiles
 import numpy as np
 from PIL import Image
+from secure import Secure
+from secure.headers import (
+    ContentSecurityPolicy,
+    PermissionsPolicy,
+    XFrameOptions,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -124,27 +130,26 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-# -- Security headers (OWASP A05) -------------------------------------------
+# -- Security headers (OWASP A05 — via `secure` library) --------------------
 
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options":        "DENY",
-    "Referrer-Policy":        "strict-origin-when-cross-origin",
-    "Permissions-Policy":     "camera=(), microphone=(), geolocation=()",
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' blob:; "
-        "script-src 'self'"
-    ),
-}
+secure_headers = Secure(
+    csp=ContentSecurityPolicy()
+        .default_src("'self'")
+        .style_src("'self'", "'unsafe-inline'")
+        .img_src("'self'", "blob:")
+        .script_src("'self'"),
+    permissions=PermissionsPolicy()
+        .camera("'none'")
+        .microphone("'none'")
+        .geolocation("'none'"),
+    x_frame_options=XFrameOptions("DENY"),
+)
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
-    for header, value in SECURITY_HEADERS.items():
-        response.headers[header] = value
+    await secure_headers.set_headers_async(response)
     return response
 
 
