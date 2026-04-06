@@ -185,6 +185,10 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `PORT` | `8000` | Server port (internal) |
 | `PUBLIC_PORT` | `8000` | Port exposed on host machine |
 | `MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
+| `DEFAULT_MODE` | `auto` | Default extraction mode (`auto`, `dark`, `blue`) |
+| `DEFAULT_THRESHOLD` | `220` | Default luminosity threshold (50–250) |
+| `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
+| `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
 | `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |

@@ -32,6 +32,12 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 MAX_IMAGE_PIXELS = int(os.environ.get("MAX_IMAGE_PIXELS", str(50_000_000)))  # ~7000x7000
 MAX_IMAGE_DIMENSION = int(os.environ.get("MAX_IMAGE_DIMENSION", "10000"))
 
+# Extraction defaults (exposed to frontend via /config)
+DEFAULT_MODE = os.environ.get("DEFAULT_MODE", "auto")
+DEFAULT_THRESHOLD = int(os.environ.get("DEFAULT_THRESHOLD", "220"))
+DEFAULT_BLUE_TOLERANCE = int(os.environ.get("DEFAULT_BLUE_TOLERANCE", "80"))
+DEFAULT_FORMAT = os.environ.get("DEFAULT_FORMAT", "png")
+
 # Pillow decompression bomb protection (OWASP A04)
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
@@ -157,13 +163,24 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/config")
+async def config():
+    """Expose non-sensitive defaults to the frontend."""
+    return {
+        "mode": DEFAULT_MODE,
+        "threshold": DEFAULT_THRESHOLD,
+        "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
+        "format": DEFAULT_FORMAT,
+    }
+
+
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),
-    mode: str = Query("auto", enum=["auto", "dark", "blue"]),
-    threshold: int = Query(220, ge=50, le=250, description="Luminosity threshold (dark mode)"),
-    blue_tolerance: int = Query(80, ge=20, le=200, description="Blue sensitivity"),
-    format: str = Query("png", enum=["png", "webp"]),
+    mode: str = Query(DEFAULT_MODE, enum=["auto", "dark", "blue"]),
+    threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250, description="Luminosity threshold (dark mode)"),
+    blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200, description="Blue sensitivity"),
+    format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
 ):
     """Extract the signature from a scanned image and return a transparent PNG/WebP."""
     safe_name = _safe_filename(file.filename)

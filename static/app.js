@@ -639,3 +639,23 @@ initContrast();
 
 // i18n — detect browser language and apply translations
 i18n.init();
+
+// Load server defaults and apply to controls
+fetch('/config')
+  .then(res => res.ok ? res.json() : null)
+  .then(cfg => {
+    if (!cfg) return;
+    const mode = dom.param('mode');
+    const threshold = dom.param('threshold');
+    const blueTolerance = dom.param('blue_tolerance');
+    const format = dom.param('format');
+
+    mode.value = cfg.mode;
+    threshold.value = cfg.threshold;
+    blueTolerance.value = cfg.blue_tolerance;
+    format.value = cfg.format;
+
+    dom.display('threshold').textContent = cfg.threshold;
+    dom.display('blue_tolerance').textContent = cfg.blue_tolerance;
+  })
+  .catch(() => {});
