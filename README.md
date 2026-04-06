@@ -36,6 +36,8 @@ Open `http://localhost:8123` in a browser.
 
 ### Uploading an image
 
+![Upload zone](static/screenshots/dropzone.png)
+
 Three import methods:
 - **Drag & drop** a scan, capture or image onto the upload zone
 - **Click** the zone to open the file picker
@@ -44,6 +46,8 @@ Three import methods:
 The upload zone stays visible at the top of the page so you can load a new image at any time.
 
 ### Real-time settings
+
+![Editor view](static/screenshots/editor.png)
 
 After uploading, a settings panel appears with instant preview:
 
@@ -67,13 +71,19 @@ The preview area displays the extracted signature. A background color picker let
 
 ### Actual-size zoom
 
-Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan (e-commerce style zoom).
+![Zoom popup](static/screenshots/zoom.png)
+
+Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan.
 
 ### Cropping
+
+![Crop tool](static/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
 
 ### Contrast enhancement
+
+![Contrast tool](static/screenshots/contrast.png)
 
 The **Enhance contrast** button opens a tool to darken the signature and boost its opacity, useful for faint scans.
 
