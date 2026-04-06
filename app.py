@@ -116,7 +116,7 @@ def _safe_filename(name: str | None) -> str:
 
 app = FastAPI(
     title="Signature Remove Background",
-    version="0.1.0",
+    version="0.1.2",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
