@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+LICENSE
+*.md
+__pycache__
+*.pyc
+.env
+venv/
+*.code-workspace
+.claude/
