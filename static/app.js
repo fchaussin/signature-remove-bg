@@ -98,7 +98,7 @@ function debounce(fn, ms) {
  * Create a blob URL and revoke the previous one stored under the same key.
  * Prevents memory leaks from accumulated object URLs (OWASP A04).
  */
-const _objectURLs = {};
+const _objectURLs = Object.create(null);
 function safeObjectURL(key, blob) {
   if (_objectURLs[key]) URL.revokeObjectURL(_objectURLs[key]);
   const url = URL.createObjectURL(blob);
@@ -148,9 +148,17 @@ const dom = {
   cropOverlay:     document.getElementById('crop'),
   contrastOverlay: document.getElementById('contrast'),
 
-  // Dynamic lookups (keep as functions)
-  param:   name => dom.editor.querySelector(`[data-param="${name}"]`),
-  display: name => dom.editor.querySelector(`[data-display="${name}"]`),
+  // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
+  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'format']),
+  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'intensity']),
+  param(name) {
+    if (!this._VALID_PARAMS.has(name)) return null;
+    return this.editor.querySelector(`[data-param="${name}"]`);
+  },
+  display(name) {
+    if (!this._VALID_DISPLAYS.has(name)) return null;
+    return this.editor.querySelector(`[data-display="${name}"]`);
+  },
 
   // Populated below after root refs exist
   fileInput:       null,
