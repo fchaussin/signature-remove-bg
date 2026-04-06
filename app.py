@@ -82,6 +82,7 @@ DEFAULT_MODE           = _choice_env("DEFAULT_MODE", "auto", VALID_MODES)
 DEFAULT_FORMAT         = _choice_env("DEFAULT_FORMAT", "png", VALID_FORMATS)
 DEFAULT_THRESHOLD      = max(50, min(250, _int_env("DEFAULT_THRESHOLD", 220)))
 DEFAULT_BLUE_TOLERANCE = max(20, min(200, _int_env("DEFAULT_BLUE_TOLERANCE", 80)))
+DEFAULT_SMOOTHING      = max(0, min(100, _int_env("DEFAULT_SMOOTHING", 30)))
 
 # -- CORS --------------------------------------------------------------------
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
@@ -170,6 +171,7 @@ def extract_signature(
     mode: str = "auto",
     threshold: int = 220,
     blue_tolerance: int = 80,
+    smoothing: int = 30,
 ) -> Image.Image:
     """
     Extract signature pixels and make the background transparent.
@@ -179,30 +181,37 @@ def extract_signature(
     - ``"dark"``  — capture all dark pixels (black ink, classic pen)
     - ``"blue"``  — capture blue-tinted pixels only
     - ``"auto"``  — combine dark + blue to catch both
+
+    The *smoothing* parameter controls the width (in luminosity units)
+    of the soft transition zone around the threshold.  ``0`` reverts to
+    a hard binary cut-off; ``30`` (default) gives natural anti-aliased
+    edges that preserve stroke thickness.
     """
     img = image.convert("RGB")
     pixels = np.array(img, dtype=np.int16)
     r, g, b = pixels[:, :, 0], pixels[:, :, 1], pixels[:, :, 2]
 
-    # "Dark" mask: luminosity below threshold (BT.601 formula)
+    sm = max(smoothing, 1)  # avoid division by zero
+
+    # "Dark" alpha: soft transition around luminosity threshold (BT.601)
     luminosity = 0.299 * r + 0.587 * g + 0.114 * b
-    mask_dark = luminosity < threshold
+    alpha_dark = np.clip((threshold - luminosity) * 255 / sm, 0, 255)
 
-    # "Blue" mask: blue channel clearly dominates red and green
-    mask_blue = (b > blue_tolerance) & (b - r > 30) & (b - g > 20)
+    # "Blue" alpha: soft transition based on blue channel dominance
+    blue_strength = np.minimum(np.minimum(b - blue_tolerance, b - r - 30), b - g - 20)
+    alpha_blue = np.clip(blue_strength * 255 / sm, 0, 255)
 
-    # Combine masks based on mode
+    # Combine based on mode
     if mode == "dark":
-        mask = mask_dark
+        alpha = alpha_dark
     elif mode == "blue":
-        mask = mask_blue
+        alpha = alpha_blue
     else:
-        mask = mask_dark | mask_blue
+        alpha = np.maximum(alpha_dark, alpha_blue)
 
     # Build RGBA output
-    alpha = np.where(mask, 255, 0).astype(np.uint8)
     result = np.array(img.convert("RGBA"))
-    result[:, :, 3] = alpha
+    result[:, :, 3] = alpha.astype(np.uint8)
     return Image.fromarray(result)
 
 
@@ -268,6 +277,7 @@ async def config():
         "mode":           DEFAULT_MODE,
         "threshold":      DEFAULT_THRESHOLD,
         "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
+        "smoothing":      DEFAULT_SMOOTHING,
         "format":         DEFAULT_FORMAT,
     }
 
@@ -278,6 +288,7 @@ async def extract(
     mode: str = Query(DEFAULT_MODE, enum=["auto", "dark", "blue"]),
     threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250),
     blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200),
+    smoothing: int = Query(DEFAULT_SMOOTHING, ge=0, le=100),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
 ):
     """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
@@ -302,7 +313,7 @@ async def extract(
 
     # 4. Extract signature
     try:
-        result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance)
+        result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing)
     except Exception:
         logger.exception("Extraction failed for %s", safe_name)
         return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
