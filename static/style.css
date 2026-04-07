@@ -92,6 +92,55 @@ button {
   color: var(--color-text-muted);
 }
 
+/* === Progress bar & busy state === */
+
+.progress-wrap {
+  display: none;
+  width: 80px;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-left: .4rem;
+  flex-shrink: 0;
+}
+
+.busy .progress-wrap { display: inline-block; }
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  transition: width .15s ease-out;
+}
+
+/* Indeterminate — pulsing shimmer when width is not set */
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.progress-bar.indeterminate {
+  width: 50%;
+  animation: indeterminate 1.2s ease-in-out infinite;
+}
+
+.busy select,
+.busy input[type=range],
+.busy .rack-toggle input,
+.busy .actions button,
+.busy .bg-swatch,
+.busy .compare-toggle input,
+.busy .panel-tool-btn {
+  pointer-events: none;
+  opacity: .45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar.indeterminate { animation: none; width: 100%; opacity: .4; }
+}
+
 .field {
   display: flex;
   flex-direction: column;

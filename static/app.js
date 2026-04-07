@@ -234,6 +234,7 @@ dom.resHint     = dom.originalPanel.querySelector('.res-hint');
 dom.extractedImg     = dom.extractedPanel.querySelector('.preview-img');
 dom.extractedBg      = dom.extractedPanel.querySelector('.preview-bg');
 dom.statusLabel      = dom.extractedPanel.querySelector('.status');
+dom.progressBar      = dom.extractedPanel.querySelector('.progress-bar');
 dom.compareSlider    = dom.extractedPanel.querySelector('.compare-slider');
 dom.compareBefore    = dom.extractedPanel.querySelector('.compare-before');
 dom.compareBeforeImg = dom.extractedPanel.querySelector('.compare-before-img');
@@ -265,6 +266,7 @@ dom.base64Format   = dom.base64Overlay.querySelector('[data-param="base64-format
 
 // Core
 let currentFile       = null;
+let extractController = null;  // AbortController for in-flight extraction
 let naturalW          = 0;
 let naturalH          = 0;
 let lastExtractedBlob = null;
@@ -295,6 +297,78 @@ let fxRack = null;
 /* ===================================================================
  *  6. Core functions
  * =================================================================== */
+
+/** Toggle busy state — disables controls and shows progress bar. */
+function setBusy(busy) {
+  dom.editor.classList.toggle('busy', busy);
+  dom.extractedPanel.setAttribute('aria-busy', busy);
+  if (!busy) {
+    dom.progressBar.style.width = '';
+    dom.progressBar.classList.remove('indeterminate');
+  }
+}
+
+/** Set the progress bar to a determinate percentage (0-100). */
+function setProgress(pct) {
+  dom.progressBar.classList.remove('indeterminate');
+  dom.progressBar.style.width = Math.round(pct) + '%';
+}
+
+/** Switch the progress bar to indeterminate (processing phase). */
+function setIndeterminate() {
+  dom.progressBar.style.width = '';
+  dom.progressBar.classList.add('indeterminate');
+}
+
+/**
+ * POST FormData to `url` with upload progress and abort support.
+ * Returns a Promise resolving to { ok, status, blob?, json? }.
+ */
+function postWithProgress(url, formData, { signal, onProgress }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    });
+
+    // Signal upload complete when progress reaches 100%
+    xhr.upload.addEventListener('load', () => {
+      if (onProgress) onProgress(1);
+    });
+
+    xhr.addEventListener('load', async () => {
+      const ok = xhr.status >= 200 && xhr.status < 300;
+      const ct = xhr.getResponseHeader('Content-Type') || '';
+      if (ct.includes('application/json')) {
+        // responseType is 'blob', so parse JSON from the blob
+        const text = await xhr.response.text();
+        let json;
+        try { json = JSON.parse(text); } catch { json = {}; }
+        resolve({ ok, status: xhr.status, json });
+      } else {
+        resolve({ ok, status: xhr.status, blob: xhr.response });
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error')));
+    xhr.addEventListener('abort', () => {
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      reject(err);
+    });
+
+    // Wire AbortController → xhr.abort()
+    if (signal) {
+      if (signal.aborted) { xhr.abort(); return; }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+
+    xhr.responseType = 'blob';
+    xhr.send(formData);
+  });
+}
 
 /** Validate file client-side before upload (OWASP A04 — early rejection). */
 function validateFile(f) {
@@ -344,7 +418,14 @@ function checkResolution() {
 
 async function extractSignature() {
   if (!currentFile) return;
-  dom.statusLabel.textContent = t('status.processing');
+
+  // Abort any in-flight extraction
+  if (extractController) extractController.abort();
+  extractController = new AbortController();
+
+  setBusy(true);
+  dom.statusLabel.textContent = t('status.uploading');
+  setProgress(0);
 
   const fd = new FormData();
   fd.append('file', currentFile);
@@ -359,18 +440,30 @@ async function extractSignature() {
   });
 
   try {
-    const res = await fetch(`/extract?${params}`, { method: 'POST', body: fd });
+    const res = await postWithProgress(`/extract?${params}`, fd, {
+      signal: extractController.signal,
+      onProgress(ratio) {
+        setProgress(ratio * 100);
+        if (ratio >= 1) {
+          dom.statusLabel.textContent = t('status.processing');
+          setIndeterminate();
+        }
+      },
+    });
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const code = data.code || 'UNKNOWN';
+      const code = (res.json && res.json.code) || 'UNKNOWN';
       dom.statusLabel.textContent = t('error.' + code);
+      setBusy(false);
       return;
     }
-    lastExtractedBlob = await res.blob();
+    lastExtractedBlob = res.blob;
     dom.extractedImg.src = safeObjectURL('extracted', lastExtractedBlob);
     dom.statusLabel.textContent = '';
-  } catch {
+    setBusy(false);
+  } catch (err) {
+    if (err.name === 'AbortError') return; // superseded by a newer request
     dom.statusLabel.textContent = t('error.NETWORK');
+    setBusy(false);
   }
 }
 
@@ -626,7 +719,13 @@ function initBase64() {
 
   async function openBase64() {
     if (!currentFile) return;
-    dom.statusLabel.textContent = t('status.processing');
+
+    if (extractController) extractController.abort();
+    extractController = new AbortController();
+
+    setBusy(true);
+    dom.statusLabel.textContent = t('status.uploading');
+    setProgress(0);
 
     const fd = new FormData();
     fd.append('file', currentFile);
@@ -642,24 +741,38 @@ function initBase64() {
     });
 
     try {
-      const res = await fetch(`/extract?${params}`, { method: 'POST', body: fd });
+      const res = await postWithProgress(`/extract?${params}`, fd, {
+        signal: extractController.signal,
+        onProgress(ratio) {
+          setProgress(ratio * 100);
+          if (ratio >= 1) {
+            dom.statusLabel.textContent = t('status.processing');
+            setIndeterminate();
+          }
+        },
+      });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        dom.statusLabel.textContent = t('error.' + (data.code || 'UNKNOWN'));
+        const code = (res.json && res.json.code) || 'UNKNOWN';
+        dom.statusLabel.textContent = t('error.' + code);
+        setBusy(false);
         return;
       }
-      const data = await res.json();
+      const data = res.json;
       // A08 — strict validation: must be data:image/(png|webp);base64, with valid chars only
       if (!data || typeof data.base64 !== 'string' || !B64_URI_RE.test(data.base64)) {
         dom.statusLabel.textContent = t('error.UNKNOWN');
+        setBusy(false);
         return;
       }
       base64DataUri = data.base64;
       updateTextarea();
       dom.statusLabel.textContent = '';
+      setBusy(false);
       openDialog(dom.base64Overlay);
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       dom.statusLabel.textContent = t('error.NETWORK');
+      setBusy(false);
     }
   }
 

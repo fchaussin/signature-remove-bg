@@ -30,6 +30,7 @@
   "crop.title": "Crop the original",
   "contrast.title": "Enhance contrast",
   "contrast.intensity": "Intensity:",
+  "status.uploading": "(uploading\u2026)",
   "status.processing": "(processing\u2026)",
   "hint.small_image": "\u26a0 Small image ({w}\u00d7{h}) \u2014 upscaled for preview. Zoom in more before capturing for better results.",
   "hint.large_image": "\u2139 Large image ({w}\u00d7{h}) \u2014 preview is scaled down. Click to view at actual size.",
