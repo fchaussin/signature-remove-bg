@@ -359,6 +359,7 @@ function buildExtractParams(extra) {
     smoothing:      fx.smoothing      ?? PARAM_RANGES.smoothing.off,
     contrast:       fx.contrast       ?? PARAM_RANGES.contrast.off,
     format:         dom.param('format').value,
+    order:          fxRack ? fxRack.getOrder().join(',') : '',
     ...extra,
   });
 }

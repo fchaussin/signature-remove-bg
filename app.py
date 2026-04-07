@@ -59,6 +59,8 @@ MODE_BLUE = "blue"
 VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
 VALID_OUTPUTS = {"binary", "base64"}
+VALID_EFFECTS = ["threshold", "blue_tolerance", "smoothing", "contrast"]
+DEFAULT_ORDER = VALID_EFFECTS  # default pipeline order
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
 # BT.601 luminosity coefficients
@@ -67,6 +69,9 @@ BT601_R, BT601_G, BT601_B = 0.299, 0.587, 0.114
 # Blue chrominance detection thresholds
 BLUE_CHROMA_R_OFFSET = 30   # B must exceed R by this much
 BLUE_CHROMA_G_OFFSET = 20   # B must exceed G by this much
+
+# Fixed anti-aliasing transition width (used when smoothing is a separate step)
+ANTIALIAS_SM = 15
 
 # Blue ratio thresholds for mode detection
 BLUE_RATIO_HIGH = 0.4       # above → MODE_BLUE
@@ -202,19 +207,19 @@ secure_headers = Secure(
         .max_age(63072000)
         .include_subdomains(),
     xcto=XContentTypeOptions(),
-    permissions=PermissionsPolicy()
-        .camera("'none'")
-        .microphone("'none'")
-        .geolocation("'none'"),
     xfo=XFrameOptions().deny(),
     referrer=ReferrerPolicy().strict_origin_when_cross_origin(),
 )
+
+# Permissions-Policy — set manually (secure lib emits 'none' instead of spec-compliant ())
+_PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=()"
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     secure_headers.set_headers(response)
+    response.headers["Permissions-Policy"] = _PERMISSIONS_POLICY
     return response
 
 
@@ -248,6 +253,73 @@ def _blue_mask(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> np.ndarray:
 #  5b. Extraction logic
 # ---------------------------------------------------------------------------
 
+def _step_threshold(alpha: np.ndarray, lum: np.ndarray, mode: str,
+                     threshold: int, **_) -> np.ndarray:
+    """Pipeline step: compute dark-ink alpha and merge into current alpha."""
+    if mode == MODE_BLUE:
+        return alpha  # skip — blue-only mode
+    alpha_dark = np.clip((threshold - lum) * 255 / ANTIALIAS_SM, 0, 255)
+    return np.maximum(alpha, alpha_dark)
+
+
+def _step_blue_tolerance(alpha: np.ndarray, r: np.ndarray, g: np.ndarray,
+                         b: np.ndarray, mode: str,
+                         blue_tolerance: int, **_) -> np.ndarray:
+    """Pipeline step: compute blue-ink alpha and merge into current alpha."""
+    if mode == MODE_DARK:
+        return alpha  # skip — dark-only mode
+    blue_strength = np.minimum(
+        np.minimum(b - blue_tolerance, b - r - BLUE_CHROMA_R_OFFSET),
+        b - g - BLUE_CHROMA_G_OFFSET,
+    )
+    alpha_blue = np.clip(blue_strength * 255 / ANTIALIAS_SM, 0, 255)
+    return np.maximum(alpha, alpha_blue)
+
+
+def _box_blur_1d(arr: np.ndarray, radius: int, axis: int) -> np.ndarray:
+    """1D box blur along *axis* using cumsum. Output shape == input shape."""
+    k = 2 * radius + 1
+    padded = np.pad(arr, [(radius + 1, radius) if i == axis else (0, 0)
+                          for i in range(arr.ndim)], mode='edge')
+    cum = np.cumsum(padded, axis=axis)
+    slc_hi = [slice(None)] * arr.ndim
+    slc_lo = [slice(None)] * arr.ndim
+    slc_hi[axis] = slice(k, None)
+    slc_lo[axis] = slice(None, -k)
+    return (cum[tuple(slc_hi)] - cum[tuple(slc_lo)]) / k
+
+
+def _step_smoothing(alpha: np.ndarray, smoothing: int, **_) -> np.ndarray:
+    """Pipeline step: box-blur the alpha channel for softer edges."""
+    if smoothing <= 0:
+        return alpha
+    radius = max(1, int(smoothing / 10))
+    return _box_blur_1d(_box_blur_1d(alpha, radius, axis=1), radius, axis=0)
+
+
+def _step_contrast(alpha: np.ndarray, result: np.ndarray,
+                   contrast: int, **_) -> np.ndarray:
+    """Pipeline step: darken visible strokes and boost alpha."""
+    if contrast <= 0:
+        return alpha
+    c = contrast / 100
+    a = alpha.astype(np.float64)
+    visible = a > 0
+    rgb = result[:, :, :3].astype(np.float64)
+    rgb[visible] *= (1 - c)
+    result[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    return np.where(visible, np.clip(a + (255 - a) * c, 0, 255), 0)
+
+
+# Pipeline step registry — maps effect names to functions
+_PIPELINE_STEPS = {
+    "threshold":      _step_threshold,
+    "blue_tolerance": _step_blue_tolerance,
+    "smoothing":      _step_smoothing,
+    "contrast":       _step_contrast,
+}
+
+
 def extract_signature(
     image: Image.Image,
     mode: str = MODE_AUTO,
@@ -255,50 +327,30 @@ def extract_signature(
     blue_tolerance: int = 80,
     smoothing: int = 30,
     contrast: int = 0,
+    order: list[str] | None = None,
 ) -> Image.Image:
     """
     Extract signature pixels and make the background transparent.
 
-    The *smoothing* parameter controls the width (in luminosity units)
-    of the soft transition zone around the threshold.  ``0`` reverts to
-    a hard binary cut-off; ``30`` gives natural anti-aliased edges.
-
-    The *contrast* parameter (0–100) darkens visible strokes and boosts
-    their alpha.  ``0`` = no change, ``100`` = fully opaque black strokes.
+    Effects are applied as a pipeline in the given *order*.
+    Each step reads/modifies the alpha channel of the result.
     """
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
-    sm = max(smoothing, 1)  # avoid division by zero
-
-    alpha_dark = np.clip((threshold - lum) * 255 / sm, 0, 255)
-
-    blue_strength = np.minimum(
-        np.minimum(b - blue_tolerance, b - r - BLUE_CHROMA_R_OFFSET),
-        b - g - BLUE_CHROMA_G_OFFSET,
-    )
-    alpha_blue = np.clip(blue_strength * 255 / sm, 0, 255)
-
-    if mode == MODE_DARK:
-        alpha = alpha_dark
-    elif mode == MODE_BLUE:
-        alpha = alpha_blue
-    else:
-        alpha = np.maximum(alpha_dark, alpha_blue)
 
     result = np.array(image.convert("RGBA"))
-    result[:, :, 3] = alpha.astype(np.uint8)
+    alpha = np.zeros(lum.shape, dtype=np.float64)
 
-    if contrast > 0:
-        c = contrast / 100
-        a = result[:, :, 3].astype(np.float64)
-        visible = a > 0
-        rgb = result[:, :, :3].astype(np.float64)
-        rgb[visible] *= (1 - c)
-        result[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
-        result[:, :, 3] = np.where(
-            visible, np.clip(a + (255 - a) * c, 0, 255).astype(np.uint8), 0,
-        )
+    ctx = dict(r=r, g=g, b=b, lum=lum, result=result, mode=mode,
+               threshold=threshold, blue_tolerance=blue_tolerance,
+               smoothing=smoothing, contrast=contrast)
 
+    for step_name in (order or DEFAULT_ORDER):
+        fn = _PIPELINE_STEPS.get(step_name)
+        if fn:
+            alpha = fn(alpha=alpha, **ctx)
+
+    result[:, :, 3] = np.clip(alpha, 0, 255).astype(np.uint8)
     return Image.fromarray(result)
 
 
@@ -524,6 +576,17 @@ async def _validate_and_open(file: UploadFile) -> tuple[Image.Image | None, str,
     return image, safe_name, None
 
 
+def _parse_order(raw: str) -> list[str] | None:
+    """Parse and validate an effect order string (A03 — whitelist)."""
+    if not raw:
+        return None
+    names = [n.strip() for n in raw.split(",")]
+    valid = set(VALID_EFFECTS)
+    if len(names) != len(valid) or not all(n in valid for n in names):
+        return None  # invalid → fall back to default
+    return names
+
+
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),
@@ -534,15 +597,18 @@ async def extract(
     contrast: int = Query(DEFAULT_CONTRAST, ge=0, le=100),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
     output: str = Query("binary", enum=["binary", "base64"]),
+    order: str = Query("", description="Comma-separated effect order"),
 ):
     """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
     image, safe_name, err = await _validate_and_open(file)
     if err:
         return err
 
+    parsed_order = _parse_order(order)
+
     async with _processing_semaphore:                    # A04 — limit concurrent CPU work
         try:
-            result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast)
+            result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast, order=parsed_order)
         except Exception:
             logger.exception("Extraction failed for %s", safe_name)
             return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
