@@ -135,7 +135,7 @@ input[type=range] {
   display: flex;
   gap: .35rem;
   align-items: center;
-  margin-top: .4rem;
+  margin-block: .4rem;
 
   & span { font-size: var(--font-xs); color: var(--color-text-muted); }
 }
@@ -241,7 +241,7 @@ input[type=range] {
 .actions {
   display: flex;
   gap: .5rem;
-  margin-top: .5rem;
+  margin-top: auto;
 }
 
 /* === Panel toolbar (zoom, compare toggle) === */
