@@ -59,7 +59,7 @@ MODE_BLUE = "blue"
 VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
 VALID_OUTPUTS = {"binary", "base64"}
-VALID_EFFECTS = ["threshold", "blue_tolerance", "smoothing", "contrast"]
+VALID_EFFECTS = ["threshold", "blue_tolerance", "contrast", "smoothing"]
 DEFAULT_ORDER = VALID_EFFECTS  # default pipeline order
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
