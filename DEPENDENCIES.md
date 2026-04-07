@@ -51,7 +51,10 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 
 - **Why**: Encode extracted images as base64 data URIs for the `output=base64` API response. Part of the Python standard library — no external package required.
 - **How**: `base64.b64encode()` converts the in-memory PNG/WebP buffer to an ASCII string, wrapped in a `data:image/…;base64,…` URI and returned as JSON.
-- **Watch out**: Base64 encoding increases payload size by ~33%. The existing `MAX_UPLOAD_MB` and `MAX_IMAGE_DIMENSION` limits cap the output size. The response includes `Cache-Control: no-store` to prevent caching of image data (OWASP A04).
+- **Watch out**:
+  - Base64 encoding increases payload size by ~33%. A dedicated `MAX_BASE64_MB` env var (default 10 MB) caps the encoded response size and returns `FILE_TOO_LARGE` if exceeded (OWASP A04).
+  - The response includes `Cache-Control: no-store` to prevent caching of image data (OWASP A04).
+  - On the frontend, the data URI is validated against a strict regex (`data:image/(png|webp);base64,[A-Za-z0-9+/\n]+=*`) and the mime type is whitelisted to `image/png` and `image/webp` only (OWASP A03/A08). The textarea is cleared on popup close to avoid leaving image data in the DOM.
 
 ### secure `1.0.1`
 
@@ -108,6 +111,7 @@ When upgrading any dependency:
 
 1. Read the changelog for breaking changes
 2. `docker compose build --no-cache` to rebuild with fresh packages
-3. Test all features: upload, crop, contrast, zoom, download
+3. Test all features: upload, crop, contrast, zoom, download, base64 export (all output formats)
 4. Verify security headers: `curl -I http://localhost:8000/` — check CSP, X-Frame-Options, etc.
-5. Check browser console for CSP violations or blocked resources
+5. Verify base64 response headers: `Cache-Control: no-store` present on `output=base64` responses
+6. Check browser console for CSP violations or blocked resources

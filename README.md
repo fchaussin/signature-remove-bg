@@ -88,7 +88,26 @@ The preview area displays the extracted signature. A background color picker let
 
 ### Download & Base64 export
 
-The **Download** button saves the extracted signature in the chosen format. The **Base64** button opens a popup with the image encoded as a `data:image/…;base64,…` URI in a read-only text area, ready to copy to the clipboard.
+The **Download** button saves the extracted signature in the chosen format. The **Base64** button opens a popup with:
+
+- A **format selector** to choose the output template:
+
+| Format | Output |
+|---|---|
+| Plain text | Raw base64 string |
+| Data URI | `data:image/png;base64,…` |
+| CSS Background Image | `background-image: url(…);` |
+| HTML Favicon | `<link rel="icon" … />` |
+| HTML Hyperlink | `<a href="…">Download</a>` |
+| HTML Image | `<img src="…" />` |
+| HTML Iframe | `<iframe src="…"></iframe>` |
+| JavaScript Image | `new Image()` + `.src` |
+| JavaScript Popup | `window.open("…")` |
+| JSON | `{"image":{"mime":"…","data":"…"}}` |
+| XML | `<image mime="…">…</image>` |
+
+- A **read-only text area** with the formatted output
+- A **Copy** button (uses the Clipboard API)
 
 ### Resolution warnings
 
@@ -128,7 +147,7 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | 200 | `OK` | Success — image blob (`output=binary`) or JSON `{"base64":"data:image/…;base64,…"}` (`output=base64`) |
 | 400 | `FILE_REQUIRED` | No file provided |
 | 400 | `INVALID_FILE` | Unreadable or invalid image |
-| 400 | `FILE_TOO_LARGE` | File exceeds size limit |
+| 400 | `FILE_TOO_LARGE` | File exceeds size limit (or base64 output exceeds `MAX_BASE64_MB`) |
 | 400 | `IMAGE_TOO_LARGE` | Image dimensions exceed limit |
 | 500 | `PROCESSING_FAILED` | Unexpected extraction error |
 
@@ -211,6 +230,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
+| `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB (OWASP A04) |
 | `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
 
 ## Technical specifications
