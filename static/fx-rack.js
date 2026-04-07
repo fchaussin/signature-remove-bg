@@ -129,9 +129,10 @@ class FxRack {
       }
       rack.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
 
-      // Rebuild slots array to match new DOM order
+      // Rebuild slots array to match new DOM order, then notify
       const ordered = [...rack.querySelectorAll('.rack-slot')];
       this.slots.sort((a, b) => ordered.indexOf(a.el) - ordered.indexOf(b.el));
+      this._onChange();
     });
   }
 }
