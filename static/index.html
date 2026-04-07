@@ -36,7 +36,14 @@
           <option value="webp">WebP</option>
         </select>
       </div>
-      <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
+      <div class="preset-group">
+        <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
+        <select class="preset-select" data-param="preset" aria-label="Presets">
+          <option value="" data-i18n="preset.default">Default</option>
+        </select>
+        <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" data-icon="save" data-icon-size="14"></button>
+        <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" data-icon="close" data-icon-size="14"></button>
+      </div>
     </div>
 
     <div class="rack" role="list" aria-label="Effects chain">
@@ -195,6 +202,21 @@
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
         <button data-action="copy" data-i18n="btn.copy">Copy</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Save preset popup -->
+  <dialog id="save-preset" class="dialog dialog--dim" aria-label="Save preset">
+    <div class="popup">
+      <h2 data-i18n="preset.save_title">Save preset</h2>
+      <div class="field">
+        <label data-i18n="preset.name_label">Preset name</label>
+        <input type="text" class="preset-name-input" maxlength="40" data-i18n-title="preset.name_placeholder" placeholder="My preset">
+      </div>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button data-action="confirm-save" data-i18n="preset.save_btn">Save</button>
       </div>
     </div>
   </dialog>

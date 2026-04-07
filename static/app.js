@@ -181,6 +181,7 @@ const dom = {
   zoomOverlay:     document.getElementById('zoom'),
   cropOverlay:     document.getElementById('crop'),
   base64Overlay:   document.getElementById('base64'),
+  savePresetOverlay: document.getElementById('save-preset'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
   _VALID_PARAMS: new Set(['mode', 'format']),
@@ -271,6 +272,13 @@ dom.base64Format   = dom.base64Overlay.querySelector('[data-param="base64-format
 
 // Auto-detect
 dom.autoDetectBtn  = dom.editor.querySelector('[data-action="auto-detect"]');
+
+// Presets
+dom.presetSelect   = dom.editor.querySelector('[data-param="preset"]');
+dom.savePresetBtn  = dom.editor.querySelector('[data-action="save-preset"]');
+dom.deletePresetBtn = dom.editor.querySelector('[data-action="delete-preset"]');
+dom.presetNameInput   = dom.savePresetOverlay.querySelector('.preset-name-input');
+dom.confirmSaveBtn    = dom.savePresetOverlay.querySelector('[data-action="confirm-save"]');
 
 
 /* ===================================================================
@@ -566,11 +574,157 @@ function applyPresets() {
     if (slot) slot.setValue(value);
   }
 
-  pendingPresets = null;
-  dom.autoDetectBtn.classList.remove('ready');
-
-  // Re-extract with the new parameters
+  // Re-extract with the new parameters (presets stay available until next upload)
   extractSignature();
+}
+
+
+/* ===================================================================
+ *  6b. Presets — save / load / delete, localStorage + URL sync
+ * =================================================================== */
+
+const PRESETS_STORAGE_KEY = 'sig-presets';
+
+// A08 — validation ranges (must match server Query params)
+const PRESET_RANGES = {
+  threshold:      { min: 50,  max: 250 },
+  blue_tolerance: { min: 20,  max: 200 },
+  smoothing:      { min: 0,   max: 100 },
+  contrast:       { min: 0,   max: 100 },
+};
+
+/** Read all saved presets from localStorage. */
+function loadPresetsMap() {
+  try {
+    const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (!raw) return {};
+    const map = JSON.parse(raw);
+    return (map && typeof map === 'object') ? map : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Persist the full presets map to localStorage. */
+function savePresetsMap(map) {
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(map));
+}
+
+/**
+ * Serialize the current form state to a query string.
+ * Includes mode, format, slider values, toggle states, and rack order.
+ */
+function serializePreset() {
+  if (!fxRack) return '';
+  const params = new URLSearchParams();
+  params.set('mode', dom.param('mode').value);
+  params.set('format', dom.param('format').value);
+  for (const slot of fxRack.slots) {
+    params.set(slot.name, slot._slider ? slot._slider.value : slot._offValue);
+    params.set(slot.name + '_off', slot.enabled ? '0' : '1');
+  }
+  params.set('order', fxRack.getOrder().join(','));
+  return params.toString();
+}
+
+/**
+ * Apply a query string preset to the form controls.
+ * Returns true if the preset was valid and applied.
+ */
+function loadPreset(qs) {
+  if (!fxRack || !qs) return false;
+  const params = new URLSearchParams(qs);
+
+  // A03 — validate mode and format against whitelists
+  const mode = params.get('mode');
+  if (mode && VALID_MODES.has(mode)) {
+    dom.param('mode').value = mode;
+  }
+  const fmt = params.get('format');
+  if (fmt && VALID_FORMATS.has(fmt)) {
+    dom.param('format').value = fmt;
+  }
+
+  // Apply slider values and toggle states (A08 — range-checked)
+  for (const slot of fxRack.slots) {
+    const raw = params.get(slot.name);
+    if (raw !== null) {
+      const v = parseInt(raw, 10);
+      const range = PRESET_RANGES[slot.name];
+      if (range && Number.isInteger(v) && v >= range.min && v <= range.max) {
+        slot.setValue(v);
+      }
+    }
+    const off = params.get(slot.name + '_off');
+    if (off !== null && slot._checkbox) {
+      const shouldDisable = off === '1';
+      if (slot.enabled === shouldDisable) {
+        slot._checkbox.checked = !shouldDisable;
+        slot._checkbox.dispatchEvent(new Event('change'));
+      }
+    }
+  }
+
+  // Apply rack order
+  const order = params.get('order');
+  if (order) {
+    const names = order.split(',');
+    // A03 — only reorder with known effect names
+    const known = new Set(fxRack.slots.map(s => s.name));
+    if (names.every(n => known.has(n)) && names.length === fxRack.slots.length) {
+      for (const name of names) {
+        const slot = fxRack.get(name);
+        if (slot) fxRack.el.appendChild(slot.el);
+      }
+      // Rebuild internal order
+      const ordered = [...fxRack.el.querySelectorAll('.rack-slot')];
+      fxRack.slots.sort((a, b) => ordered.indexOf(a.el) - ordered.indexOf(b.el));
+    }
+  }
+
+  // Sync blue_tolerance visibility
+  const blueSlot = fxRack.get('blue_tolerance');
+  if (blueSlot) {
+    const m = dom.param('mode').value;
+    blueSlot.el.style.display = (m !== 'auto' && m !== 'blue') ? 'none' : '';
+  }
+
+  return true;
+}
+
+/** Populate the preset <select> from localStorage. */
+function refreshPresetSelect() {
+  const map = loadPresetsMap();
+  // Remove all non-default options
+  while (dom.presetSelect.options.length > 1) {
+    dom.presetSelect.remove(1);
+  }
+  for (const name of Object.keys(map)) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    dom.presetSelect.appendChild(opt);
+  }
+  dom.presetSelect.value = '';
+}
+
+/** Save the current state as a named preset. */
+function savePreset(name) {
+  if (!name) return;
+  const map = loadPresetsMap();
+  map[name] = serializePreset();
+  savePresetsMap(map);
+  refreshPresetSelect();
+  dom.presetSelect.value = name;
+}
+
+/** Delete a preset by name. */
+function deletePreset(name) {
+  if (!name) return;
+  const map = loadPresetsMap();
+  delete map[name];
+  savePresetsMap(map);
+  refreshPresetSelect();
 }
 
 
@@ -1018,6 +1172,53 @@ fxRack = new FxRack(document.querySelector('.rack'), {
   onChange: debouncedExtract,
 });
 
+// Presets — wire after fxRack is ready
+refreshPresetSelect();
+
+dom.presetSelect.onchange = () => {
+  const name = dom.presetSelect.value;
+  if (!name) return; // "Default" selected — no-op (user can use /config defaults)
+  const map = loadPresetsMap();
+  if (map[name]) {
+    loadPreset(map[name]);
+    debouncedExtract();
+  }
+};
+
+dom.savePresetBtn.onclick = () => {
+  dom.presetNameInput.value = '';
+  openDialog(dom.savePresetOverlay);
+  dom.presetNameInput.focus();
+};
+
+dom.confirmSaveBtn.onclick = () => {
+  const name = dom.presetNameInput.value.trim();
+  if (!name) return;
+  savePreset(name);
+  closeDialog(dom.savePresetOverlay);
+};
+
+// Enter key confirms save
+dom.presetNameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    dom.confirmSaveBtn.click();
+  }
+});
+
+dom.savePresetOverlay.querySelector('[data-action="cancel"]').onclick = () => {
+  closeDialog(dom.savePresetOverlay);
+};
+registerDialog(dom.savePresetOverlay);
+
+dom.deletePresetBtn.onclick = () => {
+  const name = dom.presetSelect.value;
+  if (!name) return; // can't delete "Default"
+  if (confirm(t('preset.confirm_delete', { name }))) {
+    deletePreset(name);
+  }
+};
+
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
@@ -1062,5 +1263,9 @@ fetch('/config')
         if (slot) slot.setValue(cfg[name]);
       }
     }
+
+    // URL sync — apply preset from query string if present (e.g. shared link)
+    const urlQs = window.location.search.slice(1);
+    if (urlQs) loadPreset(urlQs);
   })
   .catch(() => {});
