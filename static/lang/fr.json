@@ -33,7 +33,7 @@
   "status.uploading": "(envoi\u2026)",
   "status.processing": "(traitement\u2026)",
   "hint.small_image": "\u26a0 Image petite ({w}\u00d7{h}) \u2014 elle est agrandie pour l\u2019aper\u00e7u. Zoomez davantage avant la capture pour un meilleur r\u00e9sultat.",
-  "hint.large_image": "\u2139 Image grande ({w}\u00d7{h}) \u2014 l\u2019aper\u00e7u est compact\u00e9. Cliquez pour voir en taille r\u00e9elle.",
+  "hint.large_image": "\u2139 Image grande ({w}\u00d7{h}) \u2014 l\u2019aper\u00e7u est compact\u00e9. Cliquez sur le zoom pour voir en taille r\u00e9elle.",
   "zoom.actual_size": "Taille r\u00e9elle (1:1) \u2014 {w}\u00d7{h}",
   "zoom.actual_size_pan": "Taille r\u00e9elle (1:1) \u2014 d\u00e9placez la souris pour naviguer \u2014 {w}\u00d7{h}",
   "error.FILE_REQUIRED": "(erreur : aucun fichier fourni)",
