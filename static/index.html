@@ -73,6 +73,7 @@
         <div class="actions">
           <button class="btn-secondary" data-action="contrast" data-i18n="btn.contrast">Enhance contrast</button>
           <button data-action="download" data-i18n="btn.download">Download</button>
+          <button class="btn-secondary" data-action="base64" data-i18n="btn.base64">Base64</button>
         </div>
       </div>
     </div>
@@ -112,6 +113,18 @@
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
         <button data-action="apply" data-i18n="btn.apply">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Base64 popup -->
+  <div id="base64" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Base64 output">
+    <div class="popup">
+      <h2 data-i18n="base64.title">Base64 Data URI</h2>
+      <textarea class="base64-textarea" readonly aria-label="Base64 data URI"></textarea>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button data-action="copy" data-i18n="btn.copy">Copy</button>
       </div>
     </div>
   </div>

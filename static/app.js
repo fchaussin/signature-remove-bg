@@ -19,8 +19,9 @@ const t = i18n.t.bind(i18n);
  *   7. Editor controls      — slider bindings, debounced re-extract
  *   8. initZoom()           — zoom popup logic
  *   9. initCrop()           — crop overlay logic
- *  10. initContrast()       — contrast / darken overlay logic
- *  11. Bootstrap            — upload events, paste, init calls, bg-pickers
+ *  10. initBase64()         — base64 export popup
+ *  11. initContrast()       — contrast / darken overlay logic
+ *  12. Bootstrap            — upload events, paste, init calls, bg-pickers
  * ===================================================================== */
 
 
@@ -146,6 +147,7 @@ const dom = {
   editor:          document.getElementById('editor'),
   zoomOverlay:     document.getElementById('zoom'),
   cropOverlay:     document.getElementById('crop'),
+  base64Overlay:   document.getElementById('base64'),
   contrastOverlay: document.getElementById('contrast'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
@@ -187,6 +189,10 @@ const dom = {
   cropShades:      {},
   cropHandles:     {},
 
+  // Base64 children
+  base64Textarea:  null,
+  base64CopyBtn:   null,
+
   // Contrast children
   contrastCanvas:  null,
   contrastPreview: null,
@@ -224,6 +230,10 @@ dom.cropCanvas = dom.cropArea.querySelector('canvas');
   dom.cropShades[edge]  = dom.cropArea.querySelector(`.crop-shade[data-edge="${edge}"]`);
   dom.cropHandles[edge] = dom.cropArea.querySelector(`.crop-handle[data-edge="${edge}"]`);
 });
+
+// Base64 children
+dom.base64Textarea = dom.base64Overlay.querySelector('.base64-textarea');
+dom.base64CopyBtn  = dom.base64Overlay.querySelector('[data-action="copy"]');
 
 // Contrast children
 dom.contrastCanvas  = dom.contrastOverlay.querySelector('canvas');
@@ -556,7 +566,66 @@ function initCrop() {
 
 
 /* ===================================================================
- *  10. initContrast() — contrast / darken overlay logic
+ *  10. initBase64() — base64 export popup
+ * =================================================================== */
+
+function initBase64() {
+
+  async function openBase64() {
+    if (!currentFile) return;
+    dom.statusLabel.textContent = t('status.processing');
+
+    const fd = new FormData();
+    fd.append('file', currentFile);
+    const params = new URLSearchParams({
+      mode:           dom.param('mode').value,
+      threshold:      dom.param('threshold').value,
+      blue_tolerance: dom.param('blue_tolerance').value,
+      smoothing:      dom.param('smoothing').value,
+      format:         dom.param('format').value,
+      output:         'base64'
+    });
+
+    try {
+      const res = await fetch(`/extract?${params}`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        dom.statusLabel.textContent = t('error.' + (data.code || 'UNKNOWN'));
+        return;
+      }
+      const data = await res.json();
+      dom.base64Textarea.value = data.base64;
+      dom.statusLabel.textContent = '';
+      openOverlay(dom.base64Overlay);
+    } catch {
+      dom.statusLabel.textContent = t('error.NETWORK');
+    }
+  }
+
+  // Copy to clipboard
+  dom.base64CopyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(dom.base64Textarea.value);
+      const original = dom.base64CopyBtn.textContent;
+      dom.base64CopyBtn.textContent = t('btn.copied');
+      setTimeout(() => { dom.base64CopyBtn.textContent = original; }, 1500);
+    } catch {
+      dom.base64Textarea.select();
+    }
+  };
+
+  // Open via button
+  dom.extractedPanel.querySelector('[data-action="base64"]').onclick = openBase64;
+
+  // Cancel
+  dom.base64Overlay.querySelector('[data-action="cancel"]').onclick = () => closeOverlay(dom.base64Overlay);
+
+  registerOverlay(dom.base64Overlay);
+}
+
+
+/* ===================================================================
+ *  11. initContrast() — contrast / darken overlay logic
  * =================================================================== */
 
 function initContrast() {
@@ -639,7 +708,7 @@ function initContrast() {
 
 
 /* ===================================================================
- *  11. Bootstrap — wire everything up
+ *  12. Bootstrap — wire everything up
  * =================================================================== */
 
 // Upload: click, drag & drop
@@ -686,6 +755,7 @@ dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadE
 // Feature overlays
 initZoom();
 initCrop();
+initBase64();
 initContrast();
 
 // i18n — detect browser language and apply translations
