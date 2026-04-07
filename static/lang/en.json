@@ -8,6 +8,7 @@
   "threshold.label": "Luminosity threshold:",
   "blue_tolerance.label": "Blue tolerance:",
   "smoothing.label": "Edge smoothing:",
+  "contrast.label": "Contrast:",
   "format.label": "Format",
   "panel.original": "Original",
   "panel.extracted": "Extracted signature",

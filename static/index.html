@@ -29,26 +29,46 @@
         </select>
       </div>
       <div class="field">
-        <label><span data-i18n="threshold.label">Luminosity threshold:</span> <span data-display="threshold">220</span></label>
-        <input type="range" data-param="threshold" min="50" max="250" value="220">
-      </div>
-      <div class="field">
-        <label><span data-i18n="blue_tolerance.label">Blue tolerance:</span> <span data-display="blue_tolerance">80</span></label>
-        <input type="range" data-param="blue_tolerance" min="20" max="200" value="80">
-      </div>
-      <div class="field">
-        <label><span data-i18n="smoothing.label">Edge smoothing:</span> <span data-display="smoothing">30</span></label>
-        <input type="range" data-param="smoothing" min="0" max="100" value="30">
-      </div>
-      <div class="field">
         <label data-i18n="format.label">Format</label>
         <select data-param="format">
           <option value="png">PNG</option>
           <option value="webp">WebP</option>
         </select>
       </div>
-      <div class="field field-btn">
-        <button class="btn-secondary" data-action="contrast" data-i18n="btn.contrast">Enhance contrast</button>
+    </div>
+
+    <div class="rack" role="list" aria-label="Effects chain">
+      <div class="rack-slot" data-effect="threshold" role="listitem">
+        <span class="rack-handle" aria-label="Drag to reorder">⠿</span>
+        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
+        <div class="rack-body">
+          <label><span data-i18n="threshold.label">Luminosity threshold:</span> <span data-display="threshold">220</span></label>
+          <input type="range" data-param="threshold" min="50" max="250" value="220">
+        </div>
+      </div>
+      <div class="rack-slot" data-effect="blue_tolerance" role="listitem">
+        <span class="rack-handle" aria-label="Drag to reorder">⠿</span>
+        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
+        <div class="rack-body">
+          <label><span data-i18n="blue_tolerance.label">Blue tolerance:</span> <span data-display="blue_tolerance">80</span></label>
+          <input type="range" data-param="blue_tolerance" min="20" max="200" value="80">
+        </div>
+      </div>
+      <div class="rack-slot" data-effect="smoothing" role="listitem">
+        <span class="rack-handle" aria-label="Drag to reorder">⠿</span>
+        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
+        <div class="rack-body">
+          <label><span data-i18n="smoothing.label">Edge smoothing:</span> <span data-display="smoothing">30</span></label>
+          <input type="range" data-param="smoothing" min="0" max="100" value="30">
+        </div>
+      </div>
+      <div class="rack-slot" data-effect="contrast" role="listitem">
+        <span class="rack-handle" aria-label="Drag to reorder">⠿</span>
+        <label class="rack-toggle"><input type="checkbox"><span class="rack-toggle-mark"></span></label>
+        <div class="rack-body">
+          <label><span data-i18n="contrast.label">Contrast:</span> <span data-display="contrast">0</span></label>
+          <input type="range" data-param="contrast" min="0" max="100" value="0">
+        </div>
       </div>
     </div>
 
@@ -143,33 +163,6 @@
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
         <button data-action="copy" data-i18n="btn.copy">Copy</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Contrast popup -->
-  <div id="contrast" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Contrast tool">
-    <div class="popup">
-      <h2 data-i18n="contrast.title">Enhance contrast</h2>
-      <div class="tool-preview" style="background:#333">
-        <canvas aria-label="Contrast preview"></canvas>
-      </div>
-      <div class="tool-controls">
-        <div class="field">
-          <label><span data-i18n="contrast.intensity">Intensity:</span> <span data-display="intensity">15</span>%</label>
-          <input type="range" data-param="intensity" min="0" max="100" value="15">
-        </div>
-        <div class="bg-picker" role="group" aria-label="Background color">
-          <span data-i18n="bg.label">Background:</span>
-          <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
-          <div class="bg-swatch" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
-          <div class="bg-swatch active" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
-          <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
-        </div>
-      </div>
-      <div class="popup-actions">
-        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
-        <button data-action="apply" data-i18n="btn.apply">Apply</button>
       </div>
     </div>
   </div>

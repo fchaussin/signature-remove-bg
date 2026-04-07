@@ -8,6 +8,7 @@
   "threshold.label": "Seuil luminosit\u00e9 :",
   "blue_tolerance.label": "Tol\u00e9rance bleu :",
   "smoothing.label": "Lissage des bords :",
+  "contrast.label": "Contraste :",
   "format.label": "Format",
   "panel.original": "Original",
   "panel.extracted": "Signature extraite",

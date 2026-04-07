@@ -86,6 +86,7 @@ DEFAULT_FORMAT         = _choice_env("DEFAULT_FORMAT", "png", VALID_FORMATS)
 DEFAULT_THRESHOLD      = max(50, min(250, _int_env("DEFAULT_THRESHOLD", 220)))
 DEFAULT_BLUE_TOLERANCE = max(20, min(200, _int_env("DEFAULT_BLUE_TOLERANCE", 80)))
 DEFAULT_SMOOTHING      = max(0, min(100, _int_env("DEFAULT_SMOOTHING", 30)))
+DEFAULT_CONTRAST       = max(0, min(100, _int_env("DEFAULT_CONTRAST", 0)))
 
 # -- CORS --------------------------------------------------------------------
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
@@ -175,6 +176,7 @@ def extract_signature(
     threshold: int = 220,
     blue_tolerance: int = 80,
     smoothing: int = 30,
+    contrast: int = 0,
 ) -> Image.Image:
     """
     Extract signature pixels and make the background transparent.
@@ -189,6 +191,9 @@ def extract_signature(
     of the soft transition zone around the threshold.  ``0`` reverts to
     a hard binary cut-off; ``30`` (default) gives natural anti-aliased
     edges that preserve stroke thickness.
+
+    The *contrast* parameter (0–100) darkens visible strokes and boosts
+    their alpha.  ``0`` = no change, ``100`` = fully opaque black strokes.
     """
     img = image.convert("RGB")
     pixels = np.array(img, dtype=np.int16)
@@ -215,6 +220,19 @@ def extract_signature(
     # Build RGBA output
     result = np.array(img.convert("RGBA"))
     result[:, :, 3] = alpha.astype(np.uint8)
+
+    # Contrast enhancement: darken strokes and boost alpha
+    if contrast > 0:
+        c = contrast / 100
+        a = result[:, :, 3].astype(np.float64)
+        visible = a > 0
+        rgb = result[:, :, :3].astype(np.float64)
+        rgb[visible] *= (1 - c)
+        result[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+        result[:, :, 3] = np.where(
+            visible, np.clip(a + (255 - a) * c, 0, 255).astype(np.uint8), 0,
+        )
+
     return Image.fromarray(result)
 
 
@@ -281,6 +299,7 @@ async def config():
         "threshold":      DEFAULT_THRESHOLD,
         "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
         "smoothing":      DEFAULT_SMOOTHING,
+        "contrast":       DEFAULT_CONTRAST,
         "format":         DEFAULT_FORMAT,
     }
 
@@ -292,6 +311,7 @@ async def extract(
     threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250),
     blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200),
     smoothing: int = Query(DEFAULT_SMOOTHING, ge=0, le=100),
+    contrast: int = Query(DEFAULT_CONTRAST, ge=0, le=100),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
     output: str = Query("binary", enum=["binary", "base64"]),
 ):
@@ -317,7 +337,7 @@ async def extract(
 
     # 4. Extract signature
     try:
-        result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing)
+        result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast)
     except Exception:
         logger.exception("Extraction failed for %s", safe_name)
         return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)

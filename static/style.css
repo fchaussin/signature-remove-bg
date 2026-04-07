@@ -100,9 +100,6 @@ button {
     font-weight: 500;
   }
 
-  &.field-btn {
-    justify-content: flex-end;
-  }
 }
 
 select,
@@ -392,26 +389,107 @@ input[type=range] {
   &[data-edge=right]::after  { right: -5px; }
 }
 
-/* === Tool popup (contrast) === */
+/* === Effects rack === */
 
-.tool-preview {
-  border-radius: var(--radius-sm);
+.rack {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: .5rem;
-
-  & canvas { display: block; max-width: 85vw; max-height: 55vh; }
+  flex-direction: column;
+  gap: .4rem;
+  margin-bottom: 1rem;
 }
 
-.tool-controls {
+.rack-slot {
   display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
+  gap: .6rem;
+  background: var(--color-surface);
+  padding: .6rem .75rem;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  transition: border-color .15s, opacity .15s, box-shadow .15s;
 
-  & input[type=range] { min-width: 180px; }
+  &.dragging {
+    opacity: .4;
+  }
+
+  &.drag-over {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(74, 144, 217, .25);
+  }
+
+  &.disabled {
+    opacity: .45;
+
+    & .rack-body { pointer-events: none; }
+  }
+}
+
+.rack-handle {
+  cursor: grab;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  user-select: none;
+  line-height: 1;
+  padding: 0 .15rem;
+
+  &:active { cursor: grabbing; }
+}
+
+.rack-toggle {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+
+  & input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+}
+
+.rack-toggle-mark {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border-muted);
+  border-radius: 9px;
+  transition: background .2s;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    top: 2px;
+    left: 2px;
+    transition: transform .2s;
+  }
+}
+
+.rack-toggle input:checked + .rack-toggle-mark {
+  background: var(--color-primary);
+
+  &::after { transform: translateX(14px); }
+}
+
+.rack-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  min-width: 0;
+
+  & label {
+    font-size: var(--font-sm);
+    font-weight: 500;
+  }
+
+  & input[type=range] { width: 100%; }
 }
 
 /* === Base64 popup === */
@@ -450,6 +528,8 @@ input[type=range] {
   .popup { max-width: 95vw; }
 
   .base64-textarea { min-width: 0; width: 100%; }
+
+  .rack-slot { padding: .5rem; }
 }
 
 /* === Reduced motion === */

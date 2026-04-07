@@ -16,12 +16,11 @@ const t = i18n.t.bind(i18n);
  *   5. Mutable state        — every `let` in one block, grouped by feature
  *   6. Core functions       — loadFile, checkResolution, extractSignature,
  *                             updateExtracted, getMimeType, downloadExtracted
- *   7. Editor controls      — slider bindings, debounced re-extract
+ *   7. Effects rack         — drag & drop reorder, toggle on/off
  *   8. initZoom()           — zoom popup logic
  *   9. initCrop()           — crop overlay logic
  *  10. initBase64()         — base64 export popup
- *  11. initContrast()       — contrast / darken overlay logic
- *  12. Bootstrap            — upload events, paste, init calls, bg-pickers
+ *  11. Bootstrap            — upload events, paste, init calls, bg-pickers
  * ===================================================================== */
 
 
@@ -49,6 +48,15 @@ const VALID_B64_FMTS   = new Set(['txt', 'uri', 'css_background_image', 'html_fa
 const VALID_B64_MIMES  = new Set(['image/png', 'image/webp']);                       // A03 — whitelist mime types
 const B64_URI_RE       = /^data:image\/(png|webp);base64,[A-Za-z0-9+/\n]+=*$/;      // A08 — strict data URI pattern
 const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
+
+// Effects rack — default order and per-effect default values for toggle-off
+const RACK_DEFAULTS = {
+  threshold:      { off: 220 },
+  blue_tolerance: { off: 80 },
+  smoothing:      { off: 0 },
+  contrast:       { off: 0 },
+};
+const VALID_EFFECTS = new Set(Object.keys(RACK_DEFAULTS));
 
 
 /* ===================================================================
@@ -151,11 +159,11 @@ const dom = {
   zoomOverlay:     document.getElementById('zoom'),
   cropOverlay:     document.getElementById('crop'),
   base64Overlay:   document.getElementById('base64'),
-  contrastOverlay: document.getElementById('contrast'),
+  rack:            document.querySelector('.rack'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
-  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'smoothing', 'format']),
-  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'smoothing', 'intensity']),
+  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'smoothing', 'contrast', 'format']),
+  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'smoothing', 'contrast']),
   param(name) {
     if (!this._VALID_PARAMS.has(name)) return null;
     return this.editor.querySelector(`[data-param="${name}"]`);
@@ -197,11 +205,6 @@ const dom = {
   base64CopyBtn:   null,
   base64Format:    null,
 
-  // Contrast children
-  contrastCanvas:  null,
-  contrastPreview: null,
-  contrastSlider:  null,
-  contrastLabel:   null,
 };
 
 // Dropzone
@@ -240,12 +243,6 @@ dom.base64Textarea = dom.base64Overlay.querySelector('.base64-textarea');
 dom.base64CopyBtn  = dom.base64Overlay.querySelector('[data-action="copy"]');
 dom.base64Format   = dom.base64Overlay.querySelector('[data-param="base64-format"]');
 
-// Contrast children
-dom.contrastCanvas  = dom.contrastOverlay.querySelector('canvas');
-dom.contrastPreview = dom.contrastOverlay.querySelector('.tool-preview');
-dom.contrastSlider  = dom.contrastOverlay.querySelector('[data-param="intensity"]');
-dom.contrastLabel   = dom.contrastOverlay.querySelector('[data-display="intensity"]');
-
 
 /* ===================================================================
  *  5. Mutable state — grouped by feature
@@ -276,10 +273,9 @@ let dragStartVal = 0;
 // Base64
 let base64DataUri = '';
 
-// Contrast
-let contrastImg      = new Image();
-let contrastOrigData = null;
-let contrastScale    = 1;
+// Rack — toggles state (effect name → boolean)
+let rackToggles = {};
+
 
 
 /* ===================================================================
@@ -339,9 +335,10 @@ async function extractSignature() {
   fd.append('file', currentFile);
   const params = new URLSearchParams({
     mode:           dom.param('mode').value,
-    threshold:      dom.param('threshold').value,
-    blue_tolerance: dom.param('blue_tolerance').value,
-    smoothing:      dom.param('smoothing').value,
+    threshold:      rackToggles.threshold      ? dom.param('threshold').value      : RACK_DEFAULTS.threshold.off,
+    blue_tolerance: rackToggles.blue_tolerance ? dom.param('blue_tolerance').value : RACK_DEFAULTS.blue_tolerance.off,
+    smoothing:      rackToggles.smoothing      ? dom.param('smoothing').value      : RACK_DEFAULTS.smoothing.off,
+    contrast:       rackToggles.contrast       ? dom.param('contrast').value       : RACK_DEFAULTS.contrast.off,
     format:         dom.param('format').value
   });
 
@@ -381,7 +378,7 @@ function downloadExtracted() {
 
 
 /* ===================================================================
- *  7. Editor controls (debounced re-extract)
+ *  7. Effects rack — drag & drop reorder, toggle on/off
  * =================================================================== */
 
 const debouncedExtract = debounce(extractSignature, 300);
@@ -393,6 +390,76 @@ function bindSlider(paramName) {
     label.textContent = slider.value;
     debouncedExtract();
   };
+}
+
+function initRack() {
+  const rack = dom.rack;
+  let draggedSlot = null;
+
+  // -- Toggles: read initial state from checkboxes ----------------------
+  rack.querySelectorAll('.rack-slot').forEach(slot => {
+    const effect = slot.dataset.effect;
+    if (!VALID_EFFECTS.has(effect)) return;                     // A03
+    const checkbox = slot.querySelector('.rack-toggle input');
+    rackToggles[effect] = checkbox.checked;
+    slot.classList.toggle('disabled', !checkbox.checked);
+
+    checkbox.addEventListener('change', () => {
+      rackToggles[effect] = checkbox.checked;
+      slot.classList.toggle('disabled', !checkbox.checked);
+      debouncedExtract();
+    });
+  });
+
+  // -- Sliders -----------------------------------------------------------
+  bindSlider('threshold');
+  bindSlider('blue_tolerance');
+  bindSlider('smoothing');
+  bindSlider('contrast');
+
+  // -- Drag & drop (handle only — avoids conflict with range inputs) -----
+  rack.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.rack-handle');
+    if (!handle) return;
+    const slot = handle.closest('.rack-slot');
+    if (slot) slot.draggable = true;
+  });
+
+  rack.addEventListener('dragstart', e => {
+    const slot = e.target.closest('.rack-slot');
+    if (!slot) return;
+    draggedSlot = slot;
+    slot.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');   // required for Firefox
+  });
+
+  rack.addEventListener('dragover', e => {
+    e.preventDefault();
+    const slot = e.target.closest('.rack-slot');
+    if (!slot || slot === draggedSlot) return;
+
+    // Clear previous indicators
+    rack.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
+    slot.classList.add('drag-over');
+
+    // Reorder in real time
+    const rect = slot.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+      rack.insertBefore(draggedSlot, slot);
+    } else {
+      rack.insertBefore(draggedSlot, slot.nextSibling);
+    }
+  });
+
+  rack.addEventListener('dragend', () => {
+    if (draggedSlot) {
+      draggedSlot.classList.remove('dragging');
+      draggedSlot.draggable = false;
+      draggedSlot = null;
+    }
+    rack.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
+  });
 }
 
 
@@ -683,90 +750,7 @@ function initBase64() {
 
 
 /* ===================================================================
- *  11. initContrast() — contrast / darken overlay logic
- * =================================================================== */
-
-function initContrast() {
-  const contrastCtx = dom.contrastCanvas.getContext('2d');
-
-  function applyContrastPixels(src, dst, intensity) {
-    for (let i = 0; i < src.length; i += 4) {
-      const a = src[i + 3];
-      if (a === 0) {
-        dst[i]     = src[i];
-        dst[i + 1] = src[i + 1];
-        dst[i + 2] = src[i + 2];
-        dst[i + 3] = 0;
-      } else {
-        dst[i]     = Math.round(src[i]     * (1 - intensity));
-        dst[i + 1] = Math.round(src[i + 1] * (1 - intensity));
-        dst[i + 2] = Math.round(src[i + 2] * (1 - intensity));
-        dst[i + 3] = Math.round(a + (255 - a) * intensity);
-      }
-    }
-  }
-
-  function renderContrastPreview() {
-    const intensity = dom.contrastSlider.value / 100;
-    const out = contrastCtx.createImageData(dom.contrastCanvas.width, dom.contrastCanvas.height);
-    applyContrastPixels(contrastOrigData.data, out.data, intensity);
-    contrastCtx.putImageData(out, 0, 0);
-  }
-
-  const debouncedContrast = debounce(renderContrastPreview, 30);
-
-  dom.contrastSlider.oninput = () => {
-    dom.contrastLabel.textContent = dom.contrastSlider.value;
-    debouncedContrast();
-  };
-
-  // Open contrast overlay (button is in .controls bar)
-  dom.editor.querySelector('[data-action="contrast"]').onclick = () => {
-    if (!lastExtractedBlob) return;
-    contrastImg.onload = () => {
-      contrastScale = fitScale(contrastImg.width, contrastImg.height, window.innerWidth * 0.85, window.innerHeight * 0.55);
-      dom.contrastCanvas.width  = Math.round(contrastImg.width * contrastScale);
-      dom.contrastCanvas.height = Math.round(contrastImg.height * contrastScale);
-
-      contrastCtx.drawImage(contrastImg, 0, 0, dom.contrastCanvas.width, dom.contrastCanvas.height);
-      contrastOrigData = contrastCtx.getImageData(0, 0, dom.contrastCanvas.width, dom.contrastCanvas.height);
-
-      dom.contrastSlider.value = 15;
-      dom.contrastLabel.textContent = '15';
-      renderContrastPreview();
-      openOverlay(dom.contrastOverlay);
-    };
-    contrastImg.src = safeObjectURL('contrastSrc', lastExtractedBlob);
-  };
-
-  // Cancel
-  dom.contrastOverlay.querySelector('[data-action="cancel"]').onclick = () => closeOverlay(dom.contrastOverlay);
-
-  // Apply
-  dom.contrastOverlay.querySelector('[data-action="apply"]').onclick = () => {
-    const fullCanvas = document.createElement('canvas');
-    fullCanvas.width  = contrastImg.naturalWidth;
-    fullCanvas.height = contrastImg.naturalHeight;
-    const fullCtx = fullCanvas.getContext('2d');
-    fullCtx.drawImage(contrastImg, 0, 0);
-
-    const fullData = fullCtx.getImageData(0, 0, fullCanvas.width, fullCanvas.height);
-    applyContrastPixels(fullData.data, fullData.data, dom.contrastSlider.value / 100);
-    fullCtx.putImageData(fullData, 0, 0);
-
-    fullCanvas.toBlob(blob => {
-      updateExtracted(blob);
-      closeOverlay(dom.contrastOverlay);
-    }, getMimeType());
-  };
-
-  initBgPicker(dom.contrastOverlay, dom.contrastPreview);
-  registerOverlay(dom.contrastOverlay);
-}
-
-
-/* ===================================================================
- *  12. Bootstrap — wire everything up
+ *  11. Bootstrap — wire everything up
  * =================================================================== */
 
 // Upload: click, drag & drop
@@ -799,12 +783,12 @@ document.addEventListener('paste', e => {
   }
 });
 
-// Editor sliders & selects
-bindSlider('threshold');
-bindSlider('blue_tolerance');
-bindSlider('smoothing');
+// Global controls (outside rack)
 dom.param('mode').onchange   = debouncedExtract;
 dom.param('format').onchange = debouncedExtract;
+
+// Effects rack
+initRack();
 
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg);
@@ -814,7 +798,6 @@ dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadE
 initZoom();
 initCrop();
 initBase64();
-initContrast();
 
 // i18n — detect browser language and apply translations
 i18n.init();
@@ -842,6 +825,10 @@ fetch('/config')
     if (Number.isInteger(cfg.smoothing) && cfg.smoothing >= 0 && cfg.smoothing <= 100) {
       dom.param('smoothing').value = cfg.smoothing;
       dom.display('smoothing').textContent = cfg.smoothing;
+    }
+    if (Number.isInteger(cfg.contrast) && cfg.contrast >= 0 && cfg.contrast <= 100) {
+      dom.param('contrast').value = cfg.contrast;
+      dom.display('contrast').textContent = cfg.contrast;
     }
   })
   .catch(() => {});
