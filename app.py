@@ -77,6 +77,7 @@ MAX_UPLOAD_MB       = _int_env("MAX_UPLOAD_MB", 50)
 MAX_UPLOAD_BYTES    = MAX_UPLOAD_MB * 1024 * 1024
 MAX_IMAGE_PIXELS    = _int_env("MAX_IMAGE_PIXELS", 50_000_000)   # ~7 000 × 7 000
 MAX_IMAGE_DIMENSION = _int_env("MAX_IMAGE_DIMENSION", 10_000)
+MAX_BASE64_BYTES    = _int_env("MAX_BASE64_MB", 10) * 1024 * 1024  # A04 — cap base64 response size
 UPLOAD_CHUNK_SIZE   = 64 * 1024  # 64 KB per read
 
 # -- Extraction defaults (exposed to frontend via /config) -------------------
@@ -329,7 +330,11 @@ async def extract(
     media_type = "image/png" if format == "png" else "image/webp"
 
     if output == "base64":
-        b64 = base64.b64encode(buf.read()).decode("ascii")
+        raw = buf.read()
+        if len(raw) > MAX_BASE64_BYTES:            # A04 — reject oversized base64 payloads
+            logger.warning("Base64 output too large (%d bytes) for %s", len(raw), safe_name)
+            return JSONResponse({"code": "FILE_TOO_LARGE"}, status_code=400)
+        b64 = base64.b64encode(raw).decode("ascii")
         data_uri = f"data:{media_type};base64,{b64}"
         return JSONResponse({"base64": data_uri}, headers={
             "X-Response-Code": "OK",

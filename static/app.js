@@ -45,6 +45,9 @@ const VALID_EDGES      = new Set(['top', 'bottom', 'left', 'right']);
 const VALID_FORMATS    = new Set(['png', 'webp']);
 const VALID_MODES      = new Set(['auto', 'dark', 'blue']);
 const ALLOWED_TYPES    = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
+const VALID_B64_FMTS   = new Set(['txt', 'uri', 'css_background_image', 'html_favicon', 'html_hyperlink', 'html_img', 'html_iframe', 'javascript_image', 'javascript_popup', 'json', 'xml']);
+const VALID_B64_MIMES  = new Set(['image/png', 'image/webp']);                       // A03 — whitelist mime types
+const B64_URI_RE       = /^data:image\/(png|webp);base64,[A-Za-z0-9+/\n]+=*$/;      // A08 — strict data URI pattern
 const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
 
 
@@ -192,6 +195,7 @@ const dom = {
   // Base64 children
   base64Textarea:  null,
   base64CopyBtn:   null,
+  base64Format:    null,
 
   // Contrast children
   contrastCanvas:  null,
@@ -234,6 +238,7 @@ dom.cropCanvas = dom.cropArea.querySelector('canvas');
 // Base64 children
 dom.base64Textarea = dom.base64Overlay.querySelector('.base64-textarea');
 dom.base64CopyBtn  = dom.base64Overlay.querySelector('[data-action="copy"]');
+dom.base64Format   = dom.base64Overlay.querySelector('[data-param="base64-format"]');
 
 // Contrast children
 dom.contrastCanvas  = dom.contrastOverlay.querySelector('canvas');
@@ -267,6 +272,9 @@ let activeHandle = null;
 let dragStartX   = 0;
 let dragStartY   = 0;
 let dragStartVal = 0;
+
+// Base64
+let base64DataUri = '';
 
 // Contrast
 let contrastImg      = new Image();
@@ -571,6 +579,41 @@ function initCrop() {
 
 function initBase64() {
 
+  /**
+   * Format the raw data URI according to the selected output template.
+   * The dataUri is already validated (A08) before being stored.
+   */
+  function formatBase64(dataUri, fmt) {
+    if (!VALID_B64_FMTS.has(fmt)) return '';        // A03 — reject unknown format
+    // Parse parts from data URI: "data:image/png;base64,iVBOR..."
+    const semiIdx  = dataUri.indexOf(';');
+    const commaIdx = dataUri.indexOf(',');
+    if (semiIdx < 0 || commaIdx < 0) return '';     // A08 — malformed URI
+    const mime = dataUri.substring(5, semiIdx);      // "image/png"
+    if (!VALID_B64_MIMES.has(mime)) return '';        // A03 — reject unexpected mime
+    const raw  = dataUri.substring(commaIdx + 1);    // raw base64 string
+
+    switch (fmt) {
+      case 'txt':                  return raw;
+      case 'uri':                  return dataUri;
+      case 'css_background_image': return `background-image: url(${dataUri});`;
+      case 'html_favicon':         return `<link rel="icon" type="${mime}" href="${dataUri}" />`;
+      case 'html_hyperlink':       return `<a href="${dataUri}">Download</a>`;
+      case 'html_img':             return `<img src="${dataUri}" alt="signature" />`;
+      case 'html_iframe':          return `<iframe src="${dataUri}"></iframe>`;
+      case 'javascript_image':     return `const img = new Image();\nimg.src = "${dataUri}";`;
+      case 'javascript_popup':     return `window.open("${dataUri}");`;
+      case 'json':                 return JSON.stringify({ image: { mime, data: raw } }, null, 2);
+      case 'xml':                  return `<image mime="${mime}">\n  ${raw}\n</image>`;
+      default:                     return dataUri;
+    }
+  }
+
+  function updateTextarea() {
+    if (!base64DataUri) return;
+    dom.base64Textarea.value = formatBase64(base64DataUri, dom.base64Format.value);
+  }
+
   async function openBase64() {
     if (!currentFile) return;
     dom.statusLabel.textContent = t('status.processing');
@@ -594,18 +637,22 @@ function initBase64() {
         return;
       }
       const data = await res.json();
-      // A08 — validate response shape before use
-      if (!data || typeof data.base64 !== 'string' || !data.base64.startsWith('data:image/')) {
+      // A08 — strict validation: must be data:image/(png|webp);base64, with valid chars only
+      if (!data || typeof data.base64 !== 'string' || !B64_URI_RE.test(data.base64)) {
         dom.statusLabel.textContent = t('error.UNKNOWN');
         return;
       }
-      dom.base64Textarea.value = data.base64;
+      base64DataUri = data.base64;
+      updateTextarea();
       dom.statusLabel.textContent = '';
       openOverlay(dom.base64Overlay);
     } catch {
       dom.statusLabel.textContent = t('error.NETWORK');
     }
   }
+
+  // Re-format when the output format changes
+  dom.base64Format.onchange = updateTextarea;
 
   // Copy to clipboard
   dom.base64CopyBtn.onclick = async () => {
@@ -626,6 +673,7 @@ function initBase64() {
   function closeBase64() {
     closeOverlay(dom.base64Overlay);
     dom.base64Textarea.value = '';
+    base64DataUri = '';
   }
 
   dom.base64Overlay.querySelector('[data-action="cancel"]').onclick = closeBase64;

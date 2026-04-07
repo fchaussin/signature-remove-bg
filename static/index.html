@@ -120,8 +120,24 @@
   <!-- Base64 popup -->
   <div id="base64" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Base64 output">
     <div class="popup">
-      <h2 data-i18n="base64.title">Base64 Data URI</h2>
-      <textarea class="base64-textarea" readonly aria-label="Base64 data URI"></textarea>
+      <h2 data-i18n="base64.title">Base64 Export</h2>
+      <div class="field">
+        <label data-i18n="base64.format_label">Output format</label>
+        <select data-param="base64-format">
+          <option value="txt" selected>Plain text — Base64 value</option>
+          <option value="uri">Data URI — data:content/type;base64</option>
+          <option value="css_background_image">CSS Background Image — background-image:url()</option>
+          <option value="html_favicon">HTML Favicon — &lt;link rel=icon /&gt;</option>
+          <option value="html_hyperlink">HTML Hyperlink — &lt;a&gt;&lt;/a&gt;</option>
+          <option value="html_img">HTML Image — &lt;img /&gt;</option>
+          <option value="html_iframe">HTML Iframe — &lt;iframe&gt;&lt;/iframe&gt;</option>
+          <option value="javascript_image">JavaScript Image — new Image()</option>
+          <option value="javascript_popup">JavaScript Popup — window.open()</option>
+          <option value="json">JSON — {image:{mime,data}}</option>
+          <option value="xml">XML — &lt;image&gt;&lt;/image&gt;</option>
+        </select>
+      </div>
+      <textarea class="base64-textarea" readonly aria-label="Base64 output"></textarea>
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
         <button data-action="copy" data-i18n="btn.copy">Copy</button>
