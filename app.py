@@ -331,7 +331,10 @@ async def extract(
     if output == "base64":
         b64 = base64.b64encode(buf.read()).decode("ascii")
         data_uri = f"data:{media_type};base64,{b64}"
-        return JSONResponse({"base64": data_uri}, headers={"X-Response-Code": "OK"})
+        return JSONResponse({"base64": data_uri}, headers={
+            "X-Response-Code": "OK",
+            "Cache-Control": "no-store",           # A04 — prevent caching of image data
+        })
 
     return StreamingResponse(buf, media_type=media_type, headers={
         "Content-Disposition": f"inline; filename=signature.{format}",

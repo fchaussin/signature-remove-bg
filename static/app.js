@@ -594,6 +594,11 @@ function initBase64() {
         return;
       }
       const data = await res.json();
+      // A08 — validate response shape before use
+      if (!data || typeof data.base64 !== 'string' || !data.base64.startsWith('data:image/')) {
+        dom.statusLabel.textContent = t('error.UNKNOWN');
+        return;
+      }
       dom.base64Textarea.value = data.base64;
       dom.statusLabel.textContent = '';
       openOverlay(dom.base64Overlay);
@@ -617,10 +622,15 @@ function initBase64() {
   // Open via button
   dom.extractedPanel.querySelector('[data-action="base64"]').onclick = openBase64;
 
-  // Cancel
-  dom.base64Overlay.querySelector('[data-action="cancel"]').onclick = () => closeOverlay(dom.base64Overlay);
+  // Close & clear (A04 — don't leave image data in DOM)
+  function closeBase64() {
+    closeOverlay(dom.base64Overlay);
+    dom.base64Textarea.value = '';
+  }
 
-  registerOverlay(dom.base64Overlay);
+  dom.base64Overlay.querySelector('[data-action="cancel"]').onclick = closeBase64;
+
+  registerOverlay(dom.base64Overlay, closeBase64);
 }
 
 
