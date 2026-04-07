@@ -269,6 +269,9 @@ dom.base64Textarea = dom.base64Overlay.querySelector('.base64-textarea');
 dom.base64CopyBtn  = dom.base64Overlay.querySelector('[data-action="copy"]');
 dom.base64Format   = dom.base64Overlay.querySelector('[data-param="base64-format"]');
 
+// Auto-detect
+dom.autoDetectBtn  = dom.editor.querySelector('[data-action="auto-detect"]');
+
 
 /* ===================================================================
  *  5. Mutable state — grouped by feature
@@ -299,6 +302,9 @@ let dragStartVal = 0;
 
 // Base64
 let base64DataUri = '';
+
+// Auto-detect
+let pendingPresets = null;  // presets from /analyze, awaiting user click
 
 // Rack — initialized in Bootstrap
 let fxRack = null;
@@ -351,15 +357,14 @@ function postWithProgress(url, formData, { signal, onProgress }) {
     xhr.addEventListener('load', async () => {
       const ok = xhr.status >= 200 && xhr.status < 300;
       const ct = xhr.getResponseHeader('Content-Type') || '';
-      const headers = { detectedMode: xhr.getResponseHeader('X-Detected-Mode') || '' };
       if (ct.includes('application/json')) {
         // responseType is 'blob', so parse JSON from the blob
         const text = await xhr.response.text();
         let json;
         try { json = JSON.parse(text); } catch { json = {}; }
-        resolve({ ok, status: xhr.status, json, headers });
+        resolve({ ok, status: xhr.status, json });
       } else {
-        resolve({ ok, status: xhr.status, blob: xhr.response, headers });
+        resolve({ ok, status: xhr.status, blob: xhr.response });
       }
     });
 
@@ -409,6 +414,7 @@ function loadFile(f) {
   };
   dom.editor.classList.add('visible');
   extractSignature();
+  analyzeImage();  // parallel — suggests optimal presets via ✦ Auto button
 }
 
 function checkResolution() {
@@ -477,19 +483,6 @@ async function extractSignature() {
     }
     lastExtractedBlob = res.blob;
     dom.extractedImg.src = safeObjectURL('extracted', lastExtractedBlob);
-    // Apply auto-detected mode to the select (A03 — validate against whitelist)
-    // Only update when the user hasn't manually picked a specific mode
-    if (dom.param('mode').value === 'auto'
-        && res.headers.detectedMode && VALID_MODES.has(res.headers.detectedMode)
-        && res.headers.detectedMode !== 'auto') {
-      dom.param('mode').value = res.headers.detectedMode;
-      // Sync blue_tolerance visibility without re-triggering extraction
-      const blueSlot = fxRack && fxRack.get('blue_tolerance');
-      if (blueSlot) {
-        const hidden = res.headers.detectedMode !== 'auto' && res.headers.detectedMode !== 'blue';
-        blueSlot.el.style.display = hidden ? 'none' : '';
-      }
-    }
     dom.statusLabel.textContent = '';
     setBusy(false);
   } catch (err) {
@@ -515,6 +508,69 @@ function downloadExtracted() {
   a.href = dom.extractedImg.src;
   a.download = `signature.${fmt}`;
   a.click();
+}
+
+/**
+ * POST the current file to /analyze and store the suggested presets.
+ * Called in parallel with extractSignature() on upload.
+ * When complete, the "Auto" button pulses to signal readiness.
+ */
+async function analyzeImage() {
+  if (!currentFile) return;
+  pendingPresets = null;
+  dom.autoDetectBtn.classList.remove('ready');
+
+  const fd = new FormData();
+  fd.append('file', currentFile);
+
+  try {
+    const res = await fetch('/analyze', { method: 'POST', body: fd });
+    if (!res.ok) return;
+    const data = await res.json();
+    // A03 — validate returned presets against whitelists and ranges
+    if (!data || typeof data !== 'object') return;
+    if (!VALID_MODES.has(data.mode)) return;
+    if (!Number.isInteger(data.threshold)      || data.threshold < 50       || data.threshold > 250) return;
+    if (!Number.isInteger(data.blue_tolerance)  || data.blue_tolerance < 20  || data.blue_tolerance > 200) return;
+    if (!Number.isInteger(data.smoothing)       || data.smoothing < 0        || data.smoothing > 100) return;
+    if (!Number.isInteger(data.contrast)        || data.contrast < 0         || data.contrast > 100) return;
+
+    pendingPresets = data;
+    dom.autoDetectBtn.classList.add('ready');
+  } catch {
+    // Analysis is optional — silently ignore failures
+  }
+}
+
+/**
+ * Apply pending presets to the mode select and effect rack,
+ * then re-trigger extraction with the new values.
+ */
+function applyPresets() {
+  if (!pendingPresets || !fxRack) return;
+  const p = pendingPresets;
+
+  // Mode
+  dom.param('mode').value = p.mode;
+  // Sync blue_tolerance visibility
+  const blueSlot = fxRack.get('blue_tolerance');
+  if (blueSlot) {
+    const hidden = p.mode !== 'auto' && p.mode !== 'blue';
+    blueSlot.el.style.display = hidden ? 'none' : '';
+  }
+
+  // Effect sliders
+  const presetSlots = { threshold: p.threshold, blue_tolerance: p.blue_tolerance, smoothing: p.smoothing, contrast: p.contrast };
+  for (const [name, value] of Object.entries(presetSlots)) {
+    const slot = fxRack.get(name);
+    if (slot) slot.setValue(value);
+  }
+
+  pendingPresets = null;
+  dom.autoDetectBtn.classList.remove('ready');
+
+  // Re-extract with the new parameters
+  extractSignature();
 }
 
 
@@ -952,6 +1008,9 @@ dom.param('mode').onchange = () => {
   debouncedExtract();
 };
 dom.param('format').onchange = debouncedExtract;
+
+// Auto-detect button
+dom.autoDetectBtn.onclick = applyPresets;
 
 // Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
 fxRack = new FxRack(document.querySelector('.rack'), {

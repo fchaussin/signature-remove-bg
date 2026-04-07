@@ -139,7 +139,6 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
-    expose_headers=["X-Detected-Mode"],
 )
 
 # -- Security headers (OWASP A05 — via `secure` library) --------------------
@@ -250,35 +249,120 @@ def extract_signature(
     return Image.fromarray(result)
 
 
-def detect_mode(image: Image.Image, threshold: int = 220) -> str:
-    """
-    Analyse non-background pixels to determine the dominant ink colour.
+def _otsu_threshold(luminosity: np.ndarray) -> int:
+    """Compute the optimal binarisation threshold via Otsu's method."""
+    hist, _ = np.histogram(luminosity.ravel(), bins=256, range=(0, 256))
+    total = hist.sum()
+    if total == 0:
+        return DEFAULT_THRESHOLD
 
-    Returns ``MODE_DARK`` for black/neutral ink, ``MODE_BLUE`` for blue-tinted
-    ink, or ``MODE_AUTO`` when the image contains a significant mix of both.
+    sum_all = np.dot(np.arange(256), hist)
+    sum_bg = 0.0
+    w_bg = 0
+    best_thresh = DEFAULT_THRESHOLD
+    best_var = -1.0
+
+    for t in range(256):
+        w_bg += hist[t]
+        if w_bg == 0:
+            continue
+        w_fg = total - w_bg
+        if w_fg == 0:
+            break
+        sum_bg += t * hist[t]
+        mean_bg = sum_bg / w_bg
+        mean_fg = (sum_all - sum_bg) / w_fg
+        var = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+        if var > best_var:
+            best_var = var
+            best_thresh = t
+
+    # Clamp to valid parameter range
+    return max(50, min(250, best_thresh))
+
+
+def detect_presets(image: Image.Image) -> dict:
+    """
+    Analyse an image to determine optimal extraction parameters.
+
+    Returns a dict with keys: ``mode``, ``threshold``, ``blue_tolerance``,
+    ``smoothing``, ``contrast``.
     """
     pixels = np.array(image.convert("RGB"), dtype=np.int16)
     r, g, b = pixels[:, :, 0], pixels[:, :, 1], pixels[:, :, 2]
 
-    # BT.601 luminosity — select non-white (signature) pixels
-    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
+    # --- Threshold (Otsu) ---------------------------------------------------
+    luminosity = (0.299 * r + 0.587 * g + 0.114 * b).astype(np.float64)
+    threshold = _otsu_threshold(luminosity)
+
+    # --- Ink mask -----------------------------------------------------------
     ink_mask = luminosity < threshold
+    ink_count = int(np.count_nonzero(ink_mask))
 
-    count = int(np.count_nonzero(ink_mask))
-    if count == 0:
-        return MODE_AUTO  # blank image, no opinion
+    # Not enough ink pixels — return safe defaults
+    if ink_count < 50:
+        return {
+            "mode": MODE_AUTO,
+            "threshold": threshold,
+            "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
+            "smoothing": DEFAULT_SMOOTHING,
+            "contrast": DEFAULT_CONTRAST,
+        }
 
-    # Among ink pixels, count those with dominant blue chrominance
     ri, gi, bi = r[ink_mask], g[ink_mask], b[ink_mask]
-    blue_mask = (bi > ri + 30) & (bi > gi + 20)
-    blue_count = int(np.count_nonzero(blue_mask))
+    ink_lum = luminosity[ink_mask]
 
-    ratio = blue_count / count
-    if ratio > 0.4:
-        return MODE_BLUE
-    if ratio < 0.1:
-        return MODE_DARK
-    return MODE_AUTO
+    # --- Mode (chrominance ratio) -------------------------------------------
+    blue_chroma = bi - np.maximum(ri, gi)
+    blue_mask = (bi > ri + 30) & (bi > gi + 20)
+    blue_ratio = int(np.count_nonzero(blue_mask)) / ink_count
+
+    if blue_ratio > 0.4:
+        mode = MODE_BLUE
+    elif blue_ratio < 0.1:
+        mode = MODE_DARK
+    else:
+        mode = MODE_AUTO
+
+    # --- Blue tolerance (median chrominance of blue pixels) -----------------
+    if int(np.count_nonzero(blue_mask)) > 20:
+        median_chroma = int(np.median(blue_chroma[blue_mask]))
+        blue_tolerance = max(20, min(200, median_chroma))
+    else:
+        blue_tolerance = DEFAULT_BLUE_TOLERANCE
+
+    # --- Smoothing (edge sharpness via gradient magnitude) ------------------
+    gray = luminosity.astype(np.float64)
+    # Sobel-like gradient (simple central differences)
+    gy = np.abs(gray[2:, 1:-1] - gray[:-2, 1:-1])
+    gx = np.abs(gray[1:-1, 2:] - gray[1:-1, :-2])
+    grad = np.sqrt(gx ** 2 + gy ** 2)
+    # Focus on edge pixels (mask eroded by 1px to match gradient shape)
+    edge_mask = ink_mask[1:-1, 1:-1]
+    if np.count_nonzero(edge_mask) > 20:
+        median_grad = float(np.median(grad[edge_mask]))
+        # Sharp edges (high gradient) → low smoothing, soft edges → high smoothing
+        smoothing = max(0, min(100, int(80 - median_grad * 0.6)))
+    else:
+        smoothing = DEFAULT_SMOOTHING
+
+    # --- Contrast (ink density) ---------------------------------------------
+    median_ink_lum = float(np.median(ink_lum))
+    # Faded ink (high luminosity) → more contrast needed
+    if median_ink_lum > 140:
+        contrast = min(100, int((median_ink_lum - 100) * 0.8))
+    elif median_ink_lum > 100:
+        contrast = min(50, int((median_ink_lum - 80) * 0.5))
+    else:
+        contrast = 0
+
+    return {
+        "mode": mode,
+        "threshold": threshold,
+        "blue_tolerance": blue_tolerance,
+        "smoothing": smoothing,
+        "contrast": contrast,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -396,23 +480,19 @@ async def extract(
     if image is None:
         return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
 
-    # 4. Auto-detect dominant ink colour when mode is "auto"
-    detected = detect_mode(image, threshold=threshold) if mode == MODE_AUTO else mode
-
-    # 5. Extract signature
+    # 4. Extract signature
     try:
         result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast)
     except Exception:
         logger.exception("Extraction failed for %s", safe_name)
         return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
 
-    # 6. Encode and return
+    # 5. Encode and return
     buf = io.BytesIO()
     result.save(buf, format=format.upper(), optimize=True)
     buf.seek(0)
 
     media_type = "image/png" if format == "png" else "image/webp"
-    detect_header = {"X-Detected-Mode": detected}
 
     if output == "base64":
         raw = buf.read()
@@ -422,16 +502,48 @@ async def extract(
         b64 = base64.b64encode(raw).decode("ascii")
         data_uri = f"data:{media_type};base64,{b64}"
         return JSONResponse({"base64": data_uri}, headers={
-            **detect_header,
             "X-Response-Code": "OK",
             "Cache-Control": "no-store",           # A04 — prevent caching of image data
         })
 
     return StreamingResponse(buf, media_type=media_type, headers={
-        **detect_header,
         "Content-Disposition": f"inline; filename=signature.{format}",
         "X-Response-Code": "OK",
         "Cache-Control": "no-store",                  # A04 — prevent caching of extracted images
+    })
+
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    """Analyse an image and return optimal extraction presets."""
+    safe_name = _safe_filename(file.filename)
+
+    # 1. Validate content-type
+    if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
+        logger.warning("Rejected content-type %s for %s", file.content_type, safe_name)
+        return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
+
+    # 2. Read with streaming size limit
+    contents = await read_upload(file, safe_name)
+    if contents is None:
+        return JSONResponse({"code": "FILE_TOO_LARGE"}, status_code=400)
+    if not contents:
+        return JSONResponse({"code": "FILE_REQUIRED"}, status_code=400)
+
+    # 3. Open and validate image
+    image = open_image(contents, safe_name)
+    if image is None:
+        return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
+
+    # 4. Detect optimal presets
+    try:
+        presets = detect_presets(image)
+    except Exception:
+        logger.exception("Analysis failed for %s", safe_name)
+        return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
+
+    return JSONResponse(presets, headers={
+        "Cache-Control": "no-store",
     })
 
 

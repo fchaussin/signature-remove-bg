@@ -249,6 +249,37 @@ input[type=range] {
   border: 1px solid var(--color-border);
 }
 
+/* === Auto-detect button === */
+
+.btn-auto-detect {
+  margin-left: auto;
+  align-self: center;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-sm);
+  padding: .4rem .8rem;
+  transition: color .2s, border-color .2s, box-shadow .2s;
+
+  &:hover { color: var(--color-primary); border-color: var(--color-primary); }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(74, 144, 217, .5); }
+  70%  { box-shadow: 0 0 0 6px rgba(74, 144, 217, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 144, 217, 0); }
+}
+
+.btn-auto-detect.ready {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  animation: pulse-ring 1.5s ease-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-auto-detect.ready { animation: none; }
+}
+
 /* === Previews === */
 
 .previews {
