@@ -62,19 +62,36 @@ const FX_DEFAULTS = {
  *  2. Helpers
  * =================================================================== */
 
-/** Attach a bg-picker inside `container`, applying styles to `target`. */
-function initBgPicker(container, target) {
+/**
+ * Attach a bg-picker inside `container`, applying styles to `target`.
+ * Pickers registered in the same sync group stay in sync.
+ */
+const _bgPickerGroups = {};
+
+function initBgPicker(container, target, syncGroup) {
   const picker = container.querySelector('.bg-picker') || container.querySelector('.zoom-bg-picker');
   if (!picker) return;
+
+  // Register in sync group
+  if (syncGroup) {
+    if (!_bgPickerGroups[syncGroup]) _bgPickerGroups[syncGroup] = [];
+    _bgPickerGroups[syncGroup].push({ picker, target });
+  }
+
   picker.addEventListener('click', e => {
     const swatch = e.target.closest('.bg-swatch');
     if (!swatch) return;
     const bg = swatch.dataset.bg;
     if (!VALID_BG_KEYS.has(bg)) return; // reject unknown keys (OWASP A03)
     e.stopPropagation();
-    picker.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
-    swatch.classList.add('active');
-    target.style.background = BG_STYLES[bg];
+
+    // Apply to all pickers in the same sync group
+    const peers = syncGroup ? _bgPickerGroups[syncGroup] : [{ picker, target }];
+    for (const peer of peers) {
+      peer.picker.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
+      peer.picker.querySelector(`[data-bg="${bg}"]`).classList.add('active');
+      peer.target.style.background = BG_STYLES[bg];
+    }
   });
 }
 
@@ -445,7 +462,7 @@ function initZoom() {
     if (dom.extractedImg.src) openZoom(dom.extractedImg.src);
   };
 
-  initBgPicker(dom.zoomOverlay, dom.zoomViewport);
+  initBgPicker(dom.zoomOverlay, dom.zoomViewport, 'extracted');
   registerOverlay(dom.zoomOverlay);
 }
 
@@ -792,7 +809,7 @@ fxRack = new FxRack(document.querySelector('.rack'), {
 });
 
 // Extracted panel: bg picker & download
-initBgPicker(dom.extractedPanel, dom.extractedBg);
+initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
 
 // Comparison slider

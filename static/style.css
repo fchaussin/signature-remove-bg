@@ -536,7 +536,7 @@ input[type=range] {
   flex-direction: column;
   gap: .4rem;
   margin-bottom: 1rem;
-  background: var(--color-bg);
+  background: var(--color-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: .5rem;
