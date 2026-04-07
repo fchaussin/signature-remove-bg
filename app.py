@@ -50,7 +50,10 @@ from secure.headers import (
 #  2. Configuration
 # ---------------------------------------------------------------------------
 
-VALID_MODES = {"auto", "dark", "blue"}
+MODE_AUTO = "auto"
+MODE_DARK = "dark"
+MODE_BLUE = "blue"
+VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
 VALID_OUTPUTS = {"binary", "base64"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
@@ -136,6 +139,7 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
+    expose_headers=["X-Detected-Mode"],
 )
 
 # -- Security headers (OWASP A05 — via `secure` library) --------------------
@@ -182,7 +186,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 def extract_signature(
     image: Image.Image,
-    mode: str = "auto",
+    mode: str = MODE_AUTO,
     threshold: int = 220,
     blue_tolerance: int = 80,
     smoothing: int = 30,
@@ -193,9 +197,9 @@ def extract_signature(
 
     Modes
     -----
-    - ``"dark"``  — capture all dark pixels (black ink, classic pen)
-    - ``"blue"``  — capture blue-tinted pixels only
-    - ``"auto"``  — combine dark + blue to catch both
+    - ``MODE_DARK``  — capture all dark pixels (black ink, classic pen)
+    - ``MODE_BLUE``  — capture blue-tinted pixels only
+    - ``MODE_AUTO``  — combine dark + blue to catch both
 
     The *smoothing* parameter controls the width (in luminosity units)
     of the soft transition zone around the threshold.  ``0`` reverts to
@@ -220,9 +224,9 @@ def extract_signature(
     alpha_blue = np.clip(blue_strength * 255 / sm, 0, 255)
 
     # Combine based on mode
-    if mode == "dark":
+    if mode == MODE_DARK:
         alpha = alpha_dark
-    elif mode == "blue":
+    elif mode == MODE_BLUE:
         alpha = alpha_blue
     else:
         alpha = np.maximum(alpha_dark, alpha_blue)
@@ -244,6 +248,37 @@ def extract_signature(
         )
 
     return Image.fromarray(result)
+
+
+def detect_mode(image: Image.Image, threshold: int = 220) -> str:
+    """
+    Analyse non-background pixels to determine the dominant ink colour.
+
+    Returns ``MODE_DARK`` for black/neutral ink, ``MODE_BLUE`` for blue-tinted
+    ink, or ``MODE_AUTO`` when the image contains a significant mix of both.
+    """
+    pixels = np.array(image.convert("RGB"), dtype=np.int16)
+    r, g, b = pixels[:, :, 0], pixels[:, :, 1], pixels[:, :, 2]
+
+    # BT.601 luminosity — select non-white (signature) pixels
+    luminosity = 0.299 * r + 0.587 * g + 0.114 * b
+    ink_mask = luminosity < threshold
+
+    count = int(np.count_nonzero(ink_mask))
+    if count == 0:
+        return MODE_AUTO  # blank image, no opinion
+
+    # Among ink pixels, count those with dominant blue chrominance
+    ri, gi, bi = r[ink_mask], g[ink_mask], b[ink_mask]
+    blue_mask = (bi > ri + 30) & (bi > gi + 20)
+    blue_count = int(np.count_nonzero(blue_mask))
+
+    ratio = blue_count / count
+    if ratio > 0.4:
+        return MODE_BLUE
+    if ratio < 0.1:
+        return MODE_DARK
+    return MODE_AUTO
 
 
 # ---------------------------------------------------------------------------
@@ -361,19 +396,23 @@ async def extract(
     if image is None:
         return JSONResponse({"code": "INVALID_FILE"}, status_code=400)
 
-    # 4. Extract signature
+    # 4. Auto-detect dominant ink colour when mode is "auto"
+    detected = detect_mode(image, threshold=threshold) if mode == MODE_AUTO else mode
+
+    # 5. Extract signature
     try:
         result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast)
     except Exception:
         logger.exception("Extraction failed for %s", safe_name)
         return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
 
-    # 5. Encode and return
+    # 6. Encode and return
     buf = io.BytesIO()
     result.save(buf, format=format.upper(), optimize=True)
     buf.seek(0)
 
     media_type = "image/png" if format == "png" else "image/webp"
+    detect_header = {"X-Detected-Mode": detected}
 
     if output == "base64":
         raw = buf.read()
@@ -383,11 +422,13 @@ async def extract(
         b64 = base64.b64encode(raw).decode("ascii")
         data_uri = f"data:{media_type};base64,{b64}"
         return JSONResponse({"base64": data_uri}, headers={
+            **detect_header,
             "X-Response-Code": "OK",
             "Cache-Control": "no-store",           # A04 — prevent caching of image data
         })
 
     return StreamingResponse(buf, media_type=media_type, headers={
+        **detect_header,
         "Content-Disposition": f"inline; filename=signature.{format}",
         "X-Response-Code": "OK",
         "Cache-Control": "no-store",                  # A04 — prevent caching of extracted images

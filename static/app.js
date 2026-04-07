@@ -351,14 +351,15 @@ function postWithProgress(url, formData, { signal, onProgress }) {
     xhr.addEventListener('load', async () => {
       const ok = xhr.status >= 200 && xhr.status < 300;
       const ct = xhr.getResponseHeader('Content-Type') || '';
+      const headers = { detectedMode: xhr.getResponseHeader('X-Detected-Mode') || '' };
       if (ct.includes('application/json')) {
         // responseType is 'blob', so parse JSON from the blob
         const text = await xhr.response.text();
         let json;
         try { json = JSON.parse(text); } catch { json = {}; }
-        resolve({ ok, status: xhr.status, json });
+        resolve({ ok, status: xhr.status, json, headers });
       } else {
-        resolve({ ok, status: xhr.status, blob: xhr.response });
+        resolve({ ok, status: xhr.status, blob: xhr.response, headers });
       }
     });
 
@@ -476,6 +477,19 @@ async function extractSignature() {
     }
     lastExtractedBlob = res.blob;
     dom.extractedImg.src = safeObjectURL('extracted', lastExtractedBlob);
+    // Apply auto-detected mode to the select (A03 — validate against whitelist)
+    // Only update when the user hasn't manually picked a specific mode
+    if (dom.param('mode').value === 'auto'
+        && res.headers.detectedMode && VALID_MODES.has(res.headers.detectedMode)
+        && res.headers.detectedMode !== 'auto') {
+      dom.param('mode').value = res.headers.detectedMode;
+      // Sync blue_tolerance visibility without re-triggering extraction
+      const blueSlot = fxRack && fxRack.get('blue_tolerance');
+      if (blueSlot) {
+        const hidden = res.headers.detectedMode !== 'auto' && res.headers.detectedMode !== 'blue';
+        blueSlot.el.style.display = hidden ? 'none' : '';
+      }
+    }
     dom.statusLabel.textContent = '';
     setBusy(false);
   } catch (err) {
