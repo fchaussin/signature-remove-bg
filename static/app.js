@@ -48,6 +48,16 @@ const VALID_B64_FMTS   = new Set(['txt', 'uri', 'css_background_image', 'html_fa
 const VALID_B64_MIMES  = new Set(['image/png', 'image/webp']);                       // A03 — whitelist mime types
 const B64_URI_RE       = /^data:image\/(png|webp);base64,[A-Za-z0-9+/\n]+=*$/;      // A08 — strict data URI pattern
 const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
+const XHR_TIMEOUT_MS   = 120_000;         // A05 — cap request duration (upload + processing)
+
+// A03 — whitelist error codes accepted from the server
+const VALID_ERROR_CODES = new Set([
+  'FILE_REQUIRED', 'INVALID_FILE', 'FILE_TOO_LARGE',
+  'IMAGE_TOO_LARGE', 'PROCESSING_FAILED', 'UNKNOWN', 'NETWORK',
+]);
+
+// A04 — whitelist MIME types accepted in extraction responses
+const VALID_RESPONSE_MIMES = new Set(['image/png', 'image/webp']);
 
 // Effects rack defaults (consumed by FxRack / FxSlot)
 const FX_DEFAULTS = {
@@ -353,6 +363,7 @@ function postWithProgress(url, formData, { signal, onProgress }) {
     });
 
     xhr.addEventListener('error', () => reject(new Error('Network error')));
+    xhr.addEventListener('timeout', () => reject(new Error('Network error')));  // A05
     xhr.addEventListener('abort', () => {
       const err = new Error('Aborted');
       err.name = 'AbortError';
@@ -366,6 +377,7 @@ function postWithProgress(url, formData, { signal, onProgress }) {
     }
 
     xhr.responseType = 'blob';
+    xhr.timeout = XHR_TIMEOUT_MS;                                               // A05
     xhr.send(formData);
   });
 }
@@ -451,8 +463,14 @@ async function extractSignature() {
       },
     });
     if (!res.ok) {
-      const code = (res.json && res.json.code) || 'UNKNOWN';
+      const raw = (res.json && res.json.code) || '';
+      const code = VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';               // A03
       dom.statusLabel.textContent = t('error.' + code);
+      setBusy(false);
+      return;
+    }
+    if (!res.blob || !VALID_RESPONSE_MIMES.has(res.blob.type)) {               // A04
+      dom.statusLabel.textContent = t('error.UNKNOWN');
       setBusy(false);
       return;
     }
@@ -752,7 +770,8 @@ function initBase64() {
         },
       });
       if (!res.ok) {
-        const code = (res.json && res.json.code) || 'UNKNOWN';
+        const raw = (res.json && res.json.code) || '';
+        const code = VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';             // A03
         dom.statusLabel.textContent = t('error.' + code);
         setBusy(false);
         return;
