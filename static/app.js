@@ -59,13 +59,18 @@ const VALID_ERROR_CODES = new Set([
 // A04 — whitelist MIME types accepted in extraction responses
 const VALID_RESPONSE_MIMES = new Set(['image/png', 'image/webp']);
 
-// Effects rack defaults (consumed by FxRack / FxSlot)
-const FX_DEFAULTS = {
-  threshold:      { off: 220 },
-  blue_tolerance: { off: 80 },
-  smoothing:      { off: 0 },
-  contrast:       { off: 0 },
+// Centralized parameter ranges — single source of truth (must match server PARAM_RANGES)
+const PARAM_RANGES = {
+  threshold:      { min: 50,  max: 250, off: 220 },
+  blue_tolerance: { min: 20,  max: 200, off: 80 },
+  smoothing:      { min: 0,   max: 100, off: 0 },
+  contrast:       { min: 0,   max: 100, off: 0 },
 };
+
+// Effects rack defaults (consumed by FxRack / FxSlot)
+const FX_DEFAULTS = Object.fromEntries(
+  Object.entries(PARAM_RANGES).map(([k, v]) => [k, { off: v.off }])
+);
 
 
 /* ===================================================================
@@ -344,6 +349,40 @@ function setIndeterminate() {
   dom.progressBar.classList.add('indeterminate');
 }
 
+/** Build extraction URLSearchParams from current controls. Optional extra params merged in. */
+function buildExtractParams(extra) {
+  const fx = fxRack ? fxRack.getValues() : {};
+  return new URLSearchParams({
+    mode:           dom.param('mode').value,
+    threshold:      fx.threshold      ?? PARAM_RANGES.threshold.off,
+    blue_tolerance: fx.blue_tolerance ?? PARAM_RANGES.blue_tolerance.off,
+    smoothing:      fx.smoothing      ?? PARAM_RANGES.smoothing.off,
+    contrast:       fx.contrast       ?? PARAM_RANGES.contrast.off,
+    format:         dom.param('format').value,
+    ...extra,
+  });
+}
+
+/** Validate a server error code against the whitelist (A03). */
+function safeErrorCode(raw) {
+  return VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';
+}
+
+/** Sync blue_tolerance slot visibility based on the current mode. */
+function syncBlueSlotVisibility() {
+  if (!fxRack) return;
+  const blueSlot = fxRack.get('blue_tolerance');
+  if (!blueSlot) return;
+  const mode = dom.param('mode').value;
+  blueSlot.el.style.display = (mode !== 'auto' && mode !== 'blue') ? 'none' : '';
+}
+
+/** Validate an integer param from an external source (A08). */
+function isValidParam(name, value) {
+  const r = PARAM_RANGES[name];
+  return r && Number.isInteger(value) && value >= r.min && value <= r.max;
+}
+
 /**
  * POST FormData to `url` with upload progress and abort support.
  * Returns a Promise resolving to { ok, status, blob?, json? }.
@@ -456,15 +495,7 @@ async function extractSignature() {
 
   const fd = new FormData();
   fd.append('file', currentFile);
-  const fx = fxRack ? fxRack.getValues() : {};
-  const params = new URLSearchParams({
-    mode:           dom.param('mode').value,
-    threshold:      fx.threshold      ?? 220,
-    blue_tolerance: fx.blue_tolerance ?? 80,
-    smoothing:      fx.smoothing      ?? 0,
-    contrast:       fx.contrast       ?? 0,
-    format:         dom.param('format').value
-  });
+  const params = buildExtractParams();
 
   try {
     const res = await postWithProgress(`/extract?${params}`, fd, {
@@ -478,9 +509,7 @@ async function extractSignature() {
       },
     });
     if (!res.ok) {
-      const raw = (res.json && res.json.code) || '';
-      const code = VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';               // A03
-      dom.statusLabel.textContent = t('error.' + code);
+      dom.statusLabel.textContent = t('error.' + safeErrorCode((res.json && res.json.code) || ''));
       setBusy(false);
       return;
     }
@@ -498,15 +527,6 @@ async function extractSignature() {
     dom.statusLabel.textContent = t('error.NETWORK');
     setBusy(false);
   }
-}
-
-function updateExtracted(blob) {
-  lastExtractedBlob = blob;
-  dom.extractedImg.src = safeObjectURL('extracted', blob);
-}
-
-function getMimeType() {
-  return dom.param('format').value === 'webp' ? 'image/webp' : 'image/png';
 }
 
 function downloadExtracted() {
@@ -535,13 +555,12 @@ async function analyzeImage() {
     const res = await fetch('/analyze', { method: 'POST', body: fd });
     if (!res.ok) return;
     const data = await res.json();
-    // A03 — validate returned presets against whitelists and ranges
+    // A03/A08 — validate returned presets against whitelists and ranges
     if (!data || typeof data !== 'object') return;
     if (!VALID_MODES.has(data.mode)) return;
-    if (!Number.isInteger(data.threshold)      || data.threshold < 50       || data.threshold > 250) return;
-    if (!Number.isInteger(data.blue_tolerance)  || data.blue_tolerance < 20  || data.blue_tolerance > 200) return;
-    if (!Number.isInteger(data.smoothing)       || data.smoothing < 0        || data.smoothing > 100) return;
-    if (!Number.isInteger(data.contrast)        || data.contrast < 0         || data.contrast > 100) return;
+    for (const name of Object.keys(PARAM_RANGES)) {
+      if (!isValidParam(name, data[name])) return;
+    }
 
     pendingPresets = data;
     dom.autoDetectBtn.classList.add('ready');
@@ -558,14 +577,8 @@ function applyPresets() {
   if (!pendingPresets || !fxRack) return;
   const p = pendingPresets;
 
-  // Mode
   dom.param('mode').value = p.mode;
-  // Sync blue_tolerance visibility
-  const blueSlot = fxRack.get('blue_tolerance');
-  if (blueSlot) {
-    const hidden = p.mode !== 'auto' && p.mode !== 'blue';
-    blueSlot.el.style.display = hidden ? 'none' : '';
-  }
+  syncBlueSlotVisibility();
 
   // Effect sliders
   const presetSlots = { threshold: p.threshold, blue_tolerance: p.blue_tolerance, smoothing: p.smoothing, contrast: p.contrast };
@@ -584,14 +597,6 @@ function applyPresets() {
  * =================================================================== */
 
 const PRESETS_STORAGE_KEY = 'sig-presets';
-
-// A08 — validation ranges (must match server Query params)
-const PRESET_RANGES = {
-  threshold:      { min: 50,  max: 250 },
-  blue_tolerance: { min: 20,  max: 200 },
-  smoothing:      { min: 0,   max: 100 },
-  contrast:       { min: 0,   max: 100 },
-};
 
 /** Read all saved presets from localStorage. */
 function loadPresetsMap() {
@@ -650,7 +655,7 @@ function loadPreset(qs) {
     const raw = params.get(slot.name);
     if (raw !== null) {
       const v = parseInt(raw, 10);
-      const range = PRESET_RANGES[slot.name];
+      const range = PARAM_RANGES[slot.name];
       if (range && Number.isInteger(v) && v >= range.min && v <= range.max) {
         slot.setValue(v);
       }
@@ -682,13 +687,7 @@ function loadPreset(qs) {
     }
   }
 
-  // Sync blue_tolerance visibility
-  const blueSlot = fxRack.get('blue_tolerance');
-  if (blueSlot) {
-    const m = dom.param('mode').value;
-    blueSlot.el.style.display = (m !== 'auto' && m !== 'blue') ? 'none' : '';
-  }
-
+  syncBlueSlotVisibility();
   return true;
 }
 
@@ -971,16 +970,7 @@ function initBase64() {
 
     const fd = new FormData();
     fd.append('file', currentFile);
-    const fx = fxRack ? fxRack.getValues() : {};
-    const params = new URLSearchParams({
-      mode:           dom.param('mode').value,
-      threshold:      fx.threshold      ?? 220,
-      blue_tolerance: fx.blue_tolerance ?? 80,
-      smoothing:      fx.smoothing      ?? 0,
-      contrast:       fx.contrast       ?? 0,
-      format:         dom.param('format').value,
-      output:         'base64'
-    });
+    const params = buildExtractParams({ output: 'base64' });
 
     try {
       const res = await postWithProgress(`/extract?${params}`, fd, {
@@ -994,9 +984,7 @@ function initBase64() {
         },
       });
       if (!res.ok) {
-        const raw = (res.json && res.json.code) || '';
-        const code = VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';             // A03
-        dom.statusLabel.textContent = t('error.' + code);
+        dom.statusLabel.textContent = t('error.' + safeErrorCode((res.json && res.json.code) || ''));
         setBusy(false);
         return;
       }
@@ -1153,12 +1141,7 @@ document.addEventListener('paste', e => {
 
 // Global controls (outside rack)
 dom.param('mode').onchange = () => {
-  const blueSlot = fxRack.get('blue_tolerance');
-  if (blueSlot) {
-    const mode = dom.param('mode').value;
-    const hidden = mode !== 'auto' && mode !== 'blue';
-    blueSlot.el.style.display = hidden ? 'none' : '';
-  }
+  syncBlueSlotVisibility();
   debouncedExtract();
 };
 dom.param('format').onchange = debouncedExtract;
@@ -1251,14 +1234,8 @@ fetch('/config')
       dom.param('format').value = cfg.format;
     }
     // Apply server defaults to rack slots via FxSlot.setValue()
-    const cfgSlots = {
-      threshold:      { min: 50,  max: 250 },
-      blue_tolerance: { min: 20,  max: 200 },
-      smoothing:      { min: 0,   max: 100 },
-      contrast:       { min: 0,   max: 100 },
-    };
-    for (const [name, range] of Object.entries(cfgSlots)) {
-      if (Number.isInteger(cfg[name]) && cfg[name] >= range.min && cfg[name] <= range.max) {
+    for (const name of Object.keys(PARAM_RANGES)) {
+      if (isValidParam(name, cfg[name])) {
         const slot = fxRack.get(name);
         if (slot) slot.setValue(cfg[name]);
       }
