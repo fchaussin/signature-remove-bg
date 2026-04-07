@@ -18,6 +18,7 @@ Sections
 #  1. Imports
 # ---------------------------------------------------------------------------
 
+import base64
 import io
 import logging
 import os
@@ -49,6 +50,7 @@ from secure.headers import (
 
 VALID_MODES = {"auto", "dark", "blue"}
 VALID_FORMATS = {"png", "webp"}
+VALID_OUTPUTS = {"binary", "base64"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
 
@@ -290,6 +292,7 @@ async def extract(
     blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200),
     smoothing: int = Query(DEFAULT_SMOOTHING, ge=0, le=100),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
+    output: str = Query("binary", enum=["binary", "base64"]),
 ):
     """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
     safe_name = _safe_filename(file.filename)
@@ -324,6 +327,12 @@ async def extract(
     buf.seek(0)
 
     media_type = "image/png" if format == "png" else "image/webp"
+
+    if output == "base64":
+        b64 = base64.b64encode(buf.read()).decode("ascii")
+        data_uri = f"data:{media_type};base64,{b64}"
+        return JSONResponse({"base64": data_uri}, headers={"X-Response-Code": "OK"})
+
     return StreamingResponse(buf, media_type=media_type, headers={
         "Content-Disposition": f"inline; filename=signature.{format}",
         "X-Response-Code": "OK",
