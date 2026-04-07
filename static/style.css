@@ -222,6 +222,111 @@ input[type=range] {
   border-radius: var(--radius-sm);
 }
 
+/* === Comparison slider === */
+
+.compare-slider {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  user-select: none;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.compare-slider .preview-bg {
+  display: block;
+}
+
+.compare-slider .preview-img {
+  cursor: ew-resize;
+}
+
+.compare-before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.compare-before-img {
+  display: block;
+  width: var(--compare-full-w, 100%);
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.compare-line {
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary);
+  opacity: .8;
+}
+
+.compare-knob {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: .55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  pointer-events: auto;
+  cursor: ew-resize;
+  letter-spacing: -1px;
+}
+
+/* Compare toggle button */
+.compare-toggle {
+  float: right;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+
+  & input { display: none; }
+}
+
+.compare-toggle-icon {
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  transition: color .15s;
+}
+
+.compare-toggle input:checked + .compare-toggle-icon {
+  color: var(--color-primary);
+}
+
+/* Slider off state */
+.compare-slider.off .compare-before,
+.compare-slider.off .compare-handle {
+  display: none;
+}
+
+.compare-slider.off {
+  cursor: zoom-in;
+}
+
 .actions {
   display: flex;
   gap: .5rem;

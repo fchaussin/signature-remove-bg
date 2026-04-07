@@ -218,9 +218,13 @@ dom.resInfo     = dom.originalPanel.querySelector('.res-info');
 dom.resHint     = dom.originalPanel.querySelector('.res-hint');
 
 // Extracted panel children
-dom.extractedImg = dom.extractedPanel.querySelector('.preview-img');
-dom.extractedBg  = dom.extractedPanel.querySelector('.preview-bg');
-dom.statusLabel  = dom.extractedPanel.querySelector('.status');
+dom.extractedImg     = dom.extractedPanel.querySelector('.preview-img');
+dom.extractedBg      = dom.extractedPanel.querySelector('.preview-bg');
+dom.statusLabel      = dom.extractedPanel.querySelector('.status');
+dom.compareSlider    = dom.extractedPanel.querySelector('.compare-slider');
+dom.compareBefore    = dom.extractedPanel.querySelector('.compare-before');
+dom.compareBeforeImg = dom.extractedPanel.querySelector('.compare-before-img');
+dom.compareHandle    = dom.extractedPanel.querySelector('.compare-handle');
 
 // Zoom children
 dom.zoomViewport = dom.zoomOverlay.querySelector('.zoom-viewport');
@@ -301,6 +305,7 @@ function loadFile(f) {
     naturalW = dom.originalImg.naturalWidth;
     naturalH = dom.originalImg.naturalHeight;
     checkResolution();
+    syncCompareBeforeImg();
   };
   dom.editor.classList.add('visible');
   extractSignature();
@@ -434,7 +439,12 @@ function initZoom() {
 
   // Click preview images to open zoom
   dom.originalImg.onclick  = () => { if (dom.originalImg.src) openZoom(dom.originalImg.src); };
-  dom.extractedImg.onclick = () => { if (dom.extractedImg.src) openZoom(dom.extractedImg.src); };
+  dom.extractedImg.addEventListener('click', () => {
+    if (dom.compareSlider.classList.contains('off') && dom.extractedImg.src) openZoom(dom.extractedImg.src);
+  });
+  dom.extractedImg.addEventListener('dblclick', () => {
+    if (!dom.compareSlider.classList.contains('off') && dom.extractedImg.src) openZoom(dom.extractedImg.src);
+  });
 
   initBgPicker(dom.zoomOverlay, dom.zoomViewport);
   registerOverlay(dom.zoomOverlay);
@@ -549,6 +559,7 @@ function initCrop() {
         naturalW = dom.originalImg.naturalWidth;
         naturalH = dom.originalImg.naturalHeight;
         checkResolution();
+        syncCompareBeforeImg();
       };
       closeOverlay(dom.cropOverlay);
       extractSignature();
@@ -671,7 +682,74 @@ function initBase64() {
 
 
 /* ===================================================================
- *  11. Bootstrap — wire everything up
+ *  11. Comparison slider — before/after image overlay
+ * =================================================================== */
+
+function initCompareSlider() {
+  let dragging = false;
+  const toggle = dom.extractedPanel.querySelector('[data-action="toggle-compare"]');
+
+  function isActive() {
+    return !dom.compareSlider.classList.contains('off');
+  }
+
+  function setPosition(pct) {
+    pct = Math.max(0, Math.min(100, pct));
+    dom.compareBefore.style.width = pct + '%';
+    dom.compareHandle.style.left  = pct + '%';
+    // The before image must span the full slider width so it aligns with the after image
+    if (pct > 0) {
+      dom.compareBeforeImg.style.width = dom.compareSlider.offsetWidth + 'px';
+    }
+  }
+
+  function posFromEvent(e) {
+    const rect = dom.compareSlider.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return ((clientX - rect.left) / rect.width) * 100;
+  }
+
+  // Toggle on/off
+  toggle.onchange = () => {
+    dom.compareSlider.classList.toggle('off', !toggle.checked);
+  };
+
+  dom.compareSlider.addEventListener('pointerdown', e => {
+    if (!isActive()) return;
+    dragging = true;
+    dom.compareSlider.setPointerCapture(e.pointerId);
+    setPosition(posFromEvent(e));
+  });
+
+  dom.compareSlider.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    setPosition(posFromEvent(e));
+  });
+
+  dom.compareSlider.addEventListener('pointerup', () => { dragging = false; });
+  dom.compareSlider.addEventListener('pointercancel', () => { dragging = false; });
+
+  // Keyboard support on the handle
+  dom.compareHandle.addEventListener('keydown', e => {
+    const step = 2;
+    if (e.key === 'ArrowLeft')  setPosition(parseFloat(dom.compareHandle.style.left) - step);
+    else if (e.key === 'ArrowRight') setPosition(parseFloat(dom.compareHandle.style.left) + step);
+  });
+
+  // Initialize at 50%
+  setPosition(50);
+}
+
+/** Sync the comparison "before" image with the current original source. */
+function syncCompareBeforeImg() {
+  if (dom.originalImg.src) {
+    dom.compareBeforeImg.src = dom.originalImg.src;
+  }
+}
+
+
+/* ===================================================================
+ *  12. Bootstrap — wire everything up
  * =================================================================== */
 
 // Upload: click, drag & drop
@@ -717,6 +795,9 @@ fxRack = new FxRack(document.querySelector('.rack'), {
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg);
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
+
+// Comparison slider
+initCompareSlider();
 
 // Feature overlays
 initZoom();

@@ -82,14 +82,29 @@
         </div>
       </div>
       <div class="panel" data-role="extracted">
-        <div class="panel-label"><span data-i18n="panel.extracted">Extracted signature</span> <span class="status" aria-live="polite"></span></div>
-        <div class="preview-bg" style="background:#fff">
-          <img class="preview-img" alt="Extracted signature">
+        <div class="panel-label">
+          <span data-i18n="panel.extracted">Extracted signature</span> <span class="status" aria-live="polite"></span>
+          <label class="compare-toggle" title="Before / After">
+            <input type="checkbox" checked data-action="toggle-compare">
+            <span class="compare-toggle-icon">◨</span>
+          </label>
+        </div>
+        <div class="compare-slider">
+          <div class="preview-bg" style="background:repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50%/16px 16px">
+            <img class="preview-img" alt="Extracted signature">
+          </div>
+          <div class="compare-before">
+            <img class="compare-before-img" alt="Original">
+          </div>
+          <div class="compare-handle" aria-label="Comparison slider" role="slider" tabindex="0">
+            <div class="compare-line"></div>
+            <div class="compare-knob">&#x25C0;&#x25B6;</div>
+          </div>
         </div>
         <div class="bg-picker" role="group" aria-label="Background color">
           <span data-i18n="bg.label">Background:</span>
-          <div class="bg-swatch active" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
-          <div class="bg-swatch" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
+          <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
+          <div class="bg-swatch active" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
           <div class="bg-swatch" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
           <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
         </div>
