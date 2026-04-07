@@ -214,7 +214,10 @@ input[type=range] {
     width: 100%;
     border-radius: var(--radius-sm);
     display: block;
-    cursor: zoom-in;
+  }
+
+  & .preview-wrap {
+    position: relative;
   }
 }
 
@@ -324,7 +327,45 @@ input[type=range] {
 }
 
 .compare-slider.off {
-  cursor: zoom-in;
+  cursor: default;
+}
+
+/* === Zoom button (panels) === */
+
+.zoom-btn {
+  position: absolute;
+  top: .4rem;
+  right: .4rem;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--overlay-badge);
+  color: #fff;
+  font-size: .85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.preview-wrap:hover .zoom-btn,
+.compare-slider:hover .zoom-btn {
+  opacity: 1;
+}
+
+.zoom-btn:hover {
+  background: var(--overlay-badge-hover);
+}
+
+.zoom-btn:focus-visible {
+  opacity: 1;
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
 }
 
 .actions {

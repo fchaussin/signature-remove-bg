@@ -75,7 +75,10 @@
     <div class="previews">
       <div class="panel" data-role="original">
         <div class="panel-label"><span data-i18n="panel.original">Original</span> <span class="res-info" style="font-size:.75rem;color:#999"></span></div>
-        <img class="preview-img" alt="Original image">
+        <div class="preview-wrap">
+          <img class="preview-img" alt="Original image">
+          <button class="zoom-btn" data-action="zoom" aria-label="Zoom" title="Zoom 1:1">&#x1F50D;</button>
+        </div>
         <div class="res-hint" style="display:none"></div>
         <div class="actions">
           <button class="btn-secondary" data-action="crop" data-i18n="btn.crop">Crop</button>
@@ -100,6 +103,7 @@
             <div class="compare-line"></div>
             <div class="compare-knob">&#x25C0;&#x25B6;</div>
           </div>
+          <button class="zoom-btn" data-action="zoom" aria-label="Zoom" title="Zoom 1:1">&#x1F50D;</button>
         </div>
         <div class="bg-picker" role="group" aria-label="Background color">
           <span data-i18n="bg.label">Background:</span>

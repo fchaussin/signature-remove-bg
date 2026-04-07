@@ -437,14 +437,14 @@ function initZoom() {
     if (e.target === dom.zoomOverlay) closeOverlay(dom.zoomOverlay);
   };
 
-  // Click preview images to open zoom
-  dom.originalImg.onclick  = () => { if (dom.originalImg.src) openZoom(dom.originalImg.src); };
-  dom.extractedImg.addEventListener('click', () => {
-    if (dom.compareSlider.classList.contains('off') && dom.extractedImg.src) openZoom(dom.extractedImg.src);
-  });
-  dom.extractedImg.addEventListener('dblclick', () => {
-    if (!dom.compareSlider.classList.contains('off') && dom.extractedImg.src) openZoom(dom.extractedImg.src);
-  });
+  // Zoom buttons
+  dom.originalPanel.querySelector('[data-action="zoom"]').onclick = () => {
+    if (dom.originalImg.src) openZoom(dom.originalImg.src);
+  };
+  dom.extractedPanel.querySelector('[data-action="zoom"]').onclick = e => {
+    e.stopPropagation();
+    if (dom.extractedImg.src) openZoom(dom.extractedImg.src);
+  };
 
   initBgPicker(dom.zoomOverlay, dom.zoomViewport);
   registerOverlay(dom.zoomOverlay);
