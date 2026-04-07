@@ -39,6 +39,8 @@ from secure import Secure
 from secure.headers import (
     ContentSecurityPolicy,
     PermissionsPolicy,
+    StrictTransportSecurity,
+    XContentTypeOptions,
     XFrameOptions,
     ReferrerPolicy,
 )
@@ -142,8 +144,16 @@ secure_headers = Secure(
     csp=ContentSecurityPolicy()
         .default_src("'self'")
         .style_src("'self'", "'unsafe-inline'")
-        .img_src("'self'", "blob:")
-        .script_src("'self'"),
+        .img_src("'self'", "blob:", "data:")
+        .script_src("'self'")
+        .base_uri("'self'")
+        .form_action("'self'")
+        .frame_ancestors("'none'")
+        .object_src("'none'"),
+    hsts=StrictTransportSecurity()
+        .max_age(63072000)
+        .include_subdomains(),
+    xcto=XContentTypeOptions(),
     permissions=PermissionsPolicy()
         .camera("'none'")
         .microphone("'none'")
@@ -263,8 +273,22 @@ async def read_upload(file: UploadFile, safe_name: str) -> bytes | None:
     return b"".join(chunks)
 
 
+# A03 — magic-byte signatures (don't trust Content-Type header alone)
+_IMAGE_MAGIC = (
+    b"\xff\xd8\xff",          # JPEG
+    b"\x89PNG\r\n\x1a\n",    # PNG
+    b"RIFF",                  # WebP (RIFF....WEBP)
+    b"BM",                    # BMP
+    b"II",                    # TIFF (little-endian)
+    b"MM",                    # TIFF (big-endian)
+)
+
+
 def open_image(contents: bytes, safe_name: str) -> Image.Image | None:
     """Open and verify an image from raw bytes. Returns ``None`` on failure."""
+    if not any(contents.startswith(sig) for sig in _IMAGE_MAGIC):
+        logger.warning("Rejected unknown magic bytes for %s", safe_name)
+        return None
     try:
         image = Image.open(io.BytesIO(contents))
         image.verify()
@@ -294,14 +318,16 @@ async def health():
 @app.get("/config")
 async def config():
     """Expose non-sensitive extraction defaults to the frontend."""
-    return {
+    return JSONResponse({
         "mode":           DEFAULT_MODE,
         "threshold":      DEFAULT_THRESHOLD,
         "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
         "smoothing":      DEFAULT_SMOOTHING,
         "contrast":       DEFAULT_CONTRAST,
         "format":         DEFAULT_FORMAT,
-    }
+    }, headers={
+        "Cache-Control": "public, max-age=3600",      # A04 — immutable defaults, safe to cache
+    })
 
 
 @app.post("/extract")
@@ -364,6 +390,7 @@ async def extract(
     return StreamingResponse(buf, media_type=media_type, headers={
         "Content-Disposition": f"inline; filename=signature.{format}",
         "X-Response-Code": "OK",
+        "Cache-Control": "no-store",                  # A04 — prevent caching of extracted images
     })
 
 
