@@ -86,9 +86,9 @@ The preview area displays the extracted signature. A background color picker let
 - **Dark** — for verifying light signatures
 - **Light blue** — simulates a colored document background
 
-### Download
+### Download & Base64 export
 
-The **Download** button saves the extracted signature in the chosen format.
+The **Download** button saves the extracted signature in the chosen format. The **Base64** button opens a popup with the image encoded as a `data:image/…;base64,…` URI in a read-only text area, ready to copy to the clipboard.
 
 ### Resolution warnings
 
@@ -117,6 +117,7 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | `blue_tolerance` | int | `80` | Blue sensitivity (20–200) |
 | `smoothing` | int | `30` | Edge smoothing width (0–100). 0 = hard edges, higher = smoother anti-aliasing |
 | `format` | string | `png` | Output format: `png` or `webp` |
+| `output` | string | `binary` | Response type: `binary` (image blob) or `base64` (JSON with data URI) |
 
 **Body**: `multipart/form-data` with a `file` field containing the image.
 
@@ -124,7 +125,7 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 
 | HTTP | Code | Description |
 |---|---|---|
-| 200 | `OK` | Success (image blob returned) |
+| 200 | `OK` | Success — image blob (`output=binary`) or JSON `{"base64":"data:image/…;base64,…"}` (`output=base64`) |
 | 400 | `FILE_REQUIRED` | No file provided |
 | 400 | `INVALID_FILE` | Unreadable or invalid image |
 | 400 | `FILE_TOO_LARGE` | File exceeds size limit |
@@ -153,6 +154,11 @@ curl -X POST "http://localhost:8000/extract?smoothing=60" \
 # WebP output
 curl -X POST "http://localhost:8000/extract?format=webp" \
   -F "file=@scan.jpg" -o signature.webp
+
+# Base64 data URI (JSON response)
+curl -X POST "http://localhost:8000/extract?output=base64" \
+  -F "file=@scan.jpg"
+# → {"base64":"data:image/png;base64,iVBORw0KGgo…"}
 ```
 
 **Health check**:
@@ -213,7 +219,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 - **Dependencies**: Pillow, NumPy, python-multipart
 - **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + gradient edge smoothing
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)
-- **Output format**: PNG or WebP with alpha channel (transparent background)
+- **Output format**: PNG or WebP with alpha channel (transparent background), binary or base64 data URI
 - **Docker limits**: 128 MB RAM, 1 CPU (configurable in `docker-compose.yml`)
 
 ## Parameter tuning

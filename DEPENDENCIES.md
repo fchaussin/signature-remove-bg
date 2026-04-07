@@ -47,6 +47,12 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 - **How**: `load_dotenv()` is called at startup before reading `os.environ`. It **does not override** existing env vars (system/Docker env takes priority).
 - **Watch out**: `load_dotenv()` must be called **before** any `os.environ.get()`. Currently placed right after stdlib imports, before FastAPI imports, which is intentional.
 
+### base64 (stdlib)
+
+- **Why**: Encode extracted images as base64 data URIs for the `output=base64` API response. Part of the Python standard library — no external package required.
+- **How**: `base64.b64encode()` converts the in-memory PNG/WebP buffer to an ASCII string, wrapped in a `data:image/…;base64,…` URI and returned as JSON.
+- **Watch out**: Base64 encoding increases payload size by ~33%. The existing `MAX_UPLOAD_MB` and `MAX_IMAGE_DIMENSION` limits cap the output size. The response includes `Cache-Control: no-store` to prevent caching of image data (OWASP A04).
+
 ### secure `1.0.1`
 
 - **Why**: Sets HTTP security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) using typed builders instead of error-prone raw strings. Zero external dependencies.
@@ -71,6 +77,13 @@ No build step, no bundler. All JS is loaded via `<script>` tags in `index.html`.
   - The file is **vendored** (not loaded from CDN) to comply with the `Content-Security-Policy: script-src 'self'` header. If switching to a CDN, the CSP must be updated.
   - To upgrade: download the new version from [npmjs.com/package/dompurify](https://www.npmjs.com/package/dompurify) and replace `static/vendor/purify.min.js`.
   - DOMPurify is the only JS dependency. The rest of the frontend (`app.js`, `i18n.js`) is vanilla JS with no external dependencies.
+
+### Clipboard API (browser built-in)
+
+- **Where**: `app.js` — `initBase64()` copy button
+- **Why**: Copy the base64 data URI to the clipboard when the user clicks "Copy" in the Base64 popup. Uses the standard `navigator.clipboard.writeText()` API — no external library.
+- **How**: Async call to `navigator.clipboard.writeText()`. On success, the button shows a "Copied!" feedback for 1.5 s. On failure (e.g. older browser, permission denied), falls back to `textarea.select()` so the user can manually Ctrl+C.
+- **Watch out**: `navigator.clipboard` requires a secure context (HTTPS or localhost). This is already satisfied by typical deployments. The textarea value is cleared on overlay close to avoid leaving image data in the DOM (OWASP A04).
 
 ---
 
