@@ -136,32 +136,28 @@ function safeObjectURL(key, blob) {
 
 
 /* ===================================================================
- *  3. Overlay manager — open / close any overlay + Escape handling
+ *  3. Dialog helpers — native <dialog> with showModal / close
  * =================================================================== */
 
-const overlays = [];
-
-function registerOverlay(el, onClose) {
-  overlays.push({ el, close: onClose || (() => el.classList.remove('visible')) });
+/**
+ * Register a <dialog> with an optional onClose callback.
+ * The native `cancel` event (Escape key) is handled automatically.
+ */
+function registerDialog(dialog, onClose) {
+  dialog.addEventListener('cancel', e => {
+    e.preventDefault(); // prevent default close to run our callback
+    if (onClose) onClose();
+    else dialog.close();
+  });
 }
 
-function openOverlay(el) {
-  el.classList.add('visible');
+function openDialog(dialog) {
+  if (!dialog.open) dialog.showModal();
 }
 
-function closeOverlay(el) {
-  el.classList.remove('visible');
+function closeDialog(dialog) {
+  if (dialog.open) dialog.close();
 }
-
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  for (let i = overlays.length - 1; i >= 0; i--) {
-    if (overlays[i].el.classList.contains('visible')) {
-      overlays[i].close();
-      return;
-    }
-  }
-});
 
 
 /* ===================================================================
@@ -427,7 +423,7 @@ function initZoom() {
         ? t('zoom.actual_size', sizeParams)
         : t('zoom.actual_size_pan', sizeParams);
 
-      openOverlay(dom.zoomOverlay);
+      openDialog(dom.zoomOverlay);
       zoomIsFit = isFit;
       zoomImgW  = img.naturalWidth;
       zoomImgH  = img.naturalHeight;
@@ -437,7 +433,7 @@ function initZoom() {
 
   // Pan on mousemove
   dom.zoomViewport.addEventListener('mousemove', e => {
-    if (!dom.zoomOverlay.classList.contains('visible') || zoomIsFit) return;
+    if (!dom.zoomOverlay.open || zoomIsFit) return;
     const rect = dom.zoomViewport.getBoundingClientRect();
     const rx = (e.clientX - rect.left) / ZOOM_SIZE;
     const ry = (e.clientY - rect.top) / ZOOM_SIZE;
@@ -448,10 +444,11 @@ function initZoom() {
   // Close buttons
   dom.zoomCloseBtn.onclick = e => {
     e.stopPropagation();
-    closeOverlay(dom.zoomOverlay);
+    closeDialog(dom.zoomOverlay);
   };
+  // Click on backdrop (the dialog element itself) closes
   dom.zoomOverlay.onclick = e => {
-    if (e.target === dom.zoomOverlay) closeOverlay(dom.zoomOverlay);
+    if (e.target === dom.zoomOverlay) closeDialog(dom.zoomOverlay);
   };
 
   // Zoom buttons
@@ -463,7 +460,7 @@ function initZoom() {
   };
 
   initBgPicker(dom.zoomOverlay, dom.zoomViewport, 'extracted');
-  registerOverlay(dom.zoomOverlay);
+  registerDialog(dom.zoomOverlay);
 }
 
 
@@ -542,13 +539,13 @@ function initCrop() {
       drawCropCanvas();
       cropEdges = { top: 0, bottom: 0, left: 0, right: 0 };
       updateCropUI();
-      openOverlay(dom.cropOverlay);
+      openDialog(dom.cropOverlay);
     };
     cropImg.src = safeObjectURL('cropSrc', currentFile);
   };
 
   // Cancel
-  dom.cropOverlay.querySelector('[data-action="cancel"]').onclick = () => closeOverlay(dom.cropOverlay);
+  dom.cropOverlay.querySelector('[data-action="cancel"]').onclick = () => closeDialog(dom.cropOverlay);
 
   // Apply
   dom.cropOverlay.querySelector('[data-action="apply"]').onclick = () => {
@@ -558,7 +555,7 @@ function initCrop() {
     const sh = Math.round((cropCanvasH - cropEdges.top - cropEdges.bottom) / cropScale);
 
     if (sw < 5 || sh < 5) {
-      closeOverlay(dom.cropOverlay);
+      closeDialog(dom.cropOverlay);
       return;
     }
 
@@ -577,12 +574,12 @@ function initCrop() {
         checkResolution();
         syncCompareBeforeImg();
       };
-      closeOverlay(dom.cropOverlay);
+      closeDialog(dom.cropOverlay);
       extractSignature();
     }, 'image/png');
   };
 
-  registerOverlay(dom.cropOverlay);
+  registerDialog(dom.cropOverlay);
 }
 
 
@@ -660,7 +657,7 @@ function initBase64() {
       base64DataUri = data.base64;
       updateTextarea();
       dom.statusLabel.textContent = '';
-      openOverlay(dom.base64Overlay);
+      openDialog(dom.base64Overlay);
     } catch {
       dom.statusLabel.textContent = t('error.NETWORK');
     }
@@ -686,14 +683,14 @@ function initBase64() {
 
   // Close & clear (A04 — don't leave image data in DOM)
   function closeBase64() {
-    closeOverlay(dom.base64Overlay);
+    closeDialog(dom.base64Overlay);
     dom.base64Textarea.value = '';
     base64DataUri = '';
   }
 
   dom.base64Overlay.querySelector('[data-action="cancel"]').onclick = closeBase64;
 
-  registerOverlay(dom.base64Overlay, closeBase64);
+  registerDialog(dom.base64Overlay, closeBase64);
 }
 
 

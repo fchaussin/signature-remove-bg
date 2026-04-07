@@ -129,7 +129,7 @@
   </div>
 
   <!-- Zoom popup -->
-  <div id="zoom" class="overlay overlay--dark" role="dialog" aria-modal="true" aria-label="Image zoom">
+  <dialog id="zoom" class="dialog dialog--dark" aria-label="Image zoom">
     <div class="zoom-viewport">
       <button class="zoom-close" aria-label="Close" data-icon="close" data-icon-size="18"></button>
       <img class="zoom-img" alt="Zoomed view">
@@ -144,10 +144,10 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Crop popup -->
-  <div id="crop" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Crop tool">
+  <dialog id="crop" class="dialog dialog--dim" aria-label="Crop tool">
     <div class="popup">
       <h2 data-i18n="crop.title">Crop the original</h2>
       <div class="crop-area">
@@ -166,10 +166,10 @@
         <button data-action="apply" data-i18n="btn.apply">Apply</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Base64 popup -->
-  <div id="base64" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Base64 output">
+  <dialog id="base64" class="dialog dialog--dim" aria-label="Base64 output">
     <div class="popup">
       <h2 data-i18n="base64.title">Base64 Export</h2>
       <div class="field">
@@ -194,7 +194,7 @@
         <button data-action="copy" data-i18n="btn.copy">Copy</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <script src="/static/vendor/purify.min.js"></script>
   <script src="/static/icons.js"></script>

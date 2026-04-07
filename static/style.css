@@ -28,7 +28,6 @@
   --overlay-badge: rgba(0, 0, 0, .5);
   --overlay-badge-hover: rgba(0, 0, 0, .8);
   --crop-shade: rgba(0, 0, 0, .45);
-  --popup-shadow: 0 8px 30px rgba(0, 0, 0, .4);
 
   /* Radii */
   --radius-sm: 4px;
@@ -375,19 +374,27 @@ input[type=range] {
   &.warn-large { background: var(--color-warn-large-bg); color: var(--color-warn-large-text); }
 }
 
-/* === Overlay (shared base) === */
+/* === Dialog (native <dialog>) === */
 
-.overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  justify-content: center;
-  align-items: center;
+.dialog {
+  border: none;
+  background: transparent;
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+}
 
-  &.visible { display: flex; }
-  &--dim  { background: var(--overlay-dim); }
-  &--dark { background: var(--overlay-dark); cursor: pointer; }
+.dialog::backdrop {
+  background: var(--overlay-dim);
+}
+
+.dialog--dark::backdrop {
+  background: var(--overlay-dark);
+}
+
+.dialog--dark {
+  cursor: pointer;
 }
 
 /* === Zoom === */
@@ -399,6 +406,7 @@ input[type=range] {
   overflow: hidden;
   border-radius: var(--radius-md);
   background: repeating-conic-gradient(#444 0% 25%, #555 0% 50%) 50% / 16px 16px;
+  box-shadow: 0 0 1em rgb(0 0 0 / 30%);
 
   & img {
     position: absolute;
@@ -475,7 +483,7 @@ input[type=range] {
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  box-shadow: var(--popup-shadow);
+  box-shadow: 0 0 1em rgb(0 0 0 / 30%);
 
   & h2 { font-size: 1rem; font-weight: 600; }
   & .popup-actions { display: flex; gap: .5rem; justify-content: flex-end; }
