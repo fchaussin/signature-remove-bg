@@ -16,7 +16,7 @@ const t = i18n.t.bind(i18n);
  *   5. Mutable state        — every `let` in one block, grouped by feature
  *   6. Core functions       — loadFile, checkResolution, extractSignature,
  *                             updateExtracted, getMimeType, downloadExtracted
- *   7. Effects rack         — drag & drop reorder, toggle on/off
+ *   7. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
  *   8. initZoom()           — zoom popup logic
  *   9. initCrop()           — crop overlay logic
  *  10. initBase64()         — base64 export popup
@@ -49,14 +49,13 @@ const VALID_B64_MIMES  = new Set(['image/png', 'image/webp']);                  
 const B64_URI_RE       = /^data:image\/(png|webp);base64,[A-Za-z0-9+/\n]+=*$/;      // A08 — strict data URI pattern
 const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
 
-// Effects rack — default order and per-effect default values for toggle-off
-const RACK_DEFAULTS = {
+// Effects rack defaults (consumed by FxRack / FxSlot)
+const FX_DEFAULTS = {
   threshold:      { off: 220 },
   blue_tolerance: { off: 80 },
   smoothing:      { off: 0 },
   contrast:       { off: 0 },
 };
-const VALID_EFFECTS = new Set(Object.keys(RACK_DEFAULTS));
 
 
 /* ===================================================================
@@ -159,11 +158,10 @@ const dom = {
   zoomOverlay:     document.getElementById('zoom'),
   cropOverlay:     document.getElementById('crop'),
   base64Overlay:   document.getElementById('base64'),
-  rack:            document.querySelector('.rack'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
-  _VALID_PARAMS: new Set(['mode', 'threshold', 'blue_tolerance', 'smoothing', 'contrast', 'format']),
-  _VALID_DISPLAYS: new Set(['threshold', 'blue_tolerance', 'smoothing', 'contrast']),
+  _VALID_PARAMS: new Set(['mode', 'format']),
+  _VALID_DISPLAYS: new Set([]),
   param(name) {
     if (!this._VALID_PARAMS.has(name)) return null;
     return this.editor.querySelector(`[data-param="${name}"]`);
@@ -273,9 +271,8 @@ let dragStartVal = 0;
 // Base64
 let base64DataUri = '';
 
-// Rack — toggles state (effect name → boolean)
-let rackToggles = {};
-
+// Rack — initialized in Bootstrap
+let fxRack = null;
 
 
 /* ===================================================================
@@ -333,12 +330,13 @@ async function extractSignature() {
 
   const fd = new FormData();
   fd.append('file', currentFile);
+  const fx = fxRack ? fxRack.getValues() : {};
   const params = new URLSearchParams({
     mode:           dom.param('mode').value,
-    threshold:      rackToggles.threshold      ? dom.param('threshold').value      : RACK_DEFAULTS.threshold.off,
-    blue_tolerance: rackToggles.blue_tolerance ? dom.param('blue_tolerance').value : RACK_DEFAULTS.blue_tolerance.off,
-    smoothing:      rackToggles.smoothing      ? dom.param('smoothing').value      : RACK_DEFAULTS.smoothing.off,
-    contrast:       rackToggles.contrast       ? dom.param('contrast').value       : RACK_DEFAULTS.contrast.off,
+    threshold:      fx.threshold      ?? 220,
+    blue_tolerance: fx.blue_tolerance ?? 80,
+    smoothing:      fx.smoothing      ?? 0,
+    contrast:       fx.contrast       ?? 0,
     format:         dom.param('format').value
   });
 
@@ -378,89 +376,10 @@ function downloadExtracted() {
 
 
 /* ===================================================================
- *  7. Effects rack — drag & drop reorder, toggle on/off
+ *  7. Effects rack — FxRack instance (see fx-rack.js, fx-slot.js)
  * =================================================================== */
 
 const debouncedExtract = debounce(extractSignature, 300);
-
-function bindSlider(paramName) {
-  const slider = dom.param(paramName);
-  const label  = dom.display(paramName);
-  slider.oninput = () => {
-    label.textContent = slider.value;
-    debouncedExtract();
-  };
-}
-
-function initRack() {
-  const rack = dom.rack;
-  let draggedSlot = null;
-
-  // -- Toggles: read initial state from checkboxes ----------------------
-  rack.querySelectorAll('.rack-slot').forEach(slot => {
-    const effect = slot.dataset.effect;
-    if (!VALID_EFFECTS.has(effect)) return;                     // A03
-    const checkbox = slot.querySelector('.rack-toggle input');
-    rackToggles[effect] = checkbox.checked;
-    slot.classList.toggle('disabled', !checkbox.checked);
-
-    checkbox.addEventListener('change', () => {
-      rackToggles[effect] = checkbox.checked;
-      slot.classList.toggle('disabled', !checkbox.checked);
-      debouncedExtract();
-    });
-  });
-
-  // -- Sliders -----------------------------------------------------------
-  bindSlider('threshold');
-  bindSlider('blue_tolerance');
-  bindSlider('smoothing');
-  bindSlider('contrast');
-
-  // -- Drag & drop (handle only — avoids conflict with range inputs) -----
-  rack.addEventListener('mousedown', e => {
-    const handle = e.target.closest('.rack-handle');
-    if (!handle) return;
-    const slot = handle.closest('.rack-slot');
-    if (slot) slot.draggable = true;
-  });
-
-  rack.addEventListener('dragstart', e => {
-    const slot = e.target.closest('.rack-slot');
-    if (!slot) return;
-    draggedSlot = slot;
-    slot.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');   // required for Firefox
-  });
-
-  rack.addEventListener('dragover', e => {
-    e.preventDefault();
-    const slot = e.target.closest('.rack-slot');
-    if (!slot || slot === draggedSlot) return;
-
-    // Clear previous indicators
-    rack.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
-    slot.classList.add('drag-over');
-
-    // Reorder in real time
-    const rect = slot.getBoundingClientRect();
-    if (e.clientY < rect.top + rect.height / 2) {
-      rack.insertBefore(draggedSlot, slot);
-    } else {
-      rack.insertBefore(draggedSlot, slot.nextSibling);
-    }
-  });
-
-  rack.addEventListener('dragend', () => {
-    if (draggedSlot) {
-      draggedSlot.classList.remove('dragging');
-      draggedSlot.draggable = false;
-      draggedSlot = null;
-    }
-    rack.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
-  });
-}
 
 
 /* ===================================================================
@@ -687,11 +606,13 @@ function initBase64() {
 
     const fd = new FormData();
     fd.append('file', currentFile);
+    const fx = fxRack ? fxRack.getValues() : {};
     const params = new URLSearchParams({
       mode:           dom.param('mode').value,
-      threshold:      dom.param('threshold').value,
-      blue_tolerance: dom.param('blue_tolerance').value,
-      smoothing:      dom.param('smoothing').value,
+      threshold:      fx.threshold      ?? 220,
+      blue_tolerance: fx.blue_tolerance ?? 80,
+      smoothing:      fx.smoothing      ?? 0,
+      contrast:       fx.contrast       ?? 0,
       format:         dom.param('format').value,
       output:         'base64'
     });
@@ -787,8 +708,11 @@ document.addEventListener('paste', e => {
 dom.param('mode').onchange   = debouncedExtract;
 dom.param('format').onchange = debouncedExtract;
 
-// Effects rack
-initRack();
+// Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
+fxRack = new FxRack(document.querySelector('.rack'), {
+  defaults: FX_DEFAULTS,
+  onChange: debouncedExtract,
+});
 
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg);
@@ -814,21 +738,18 @@ fetch('/config')
     if (VALID_FORMATS.has(cfg.format)) {
       dom.param('format').value = cfg.format;
     }
-    if (Number.isInteger(cfg.threshold) && cfg.threshold >= 50 && cfg.threshold <= 250) {
-      dom.param('threshold').value = cfg.threshold;
-      dom.display('threshold').textContent = cfg.threshold;
-    }
-    if (Number.isInteger(cfg.blue_tolerance) && cfg.blue_tolerance >= 20 && cfg.blue_tolerance <= 200) {
-      dom.param('blue_tolerance').value = cfg.blue_tolerance;
-      dom.display('blue_tolerance').textContent = cfg.blue_tolerance;
-    }
-    if (Number.isInteger(cfg.smoothing) && cfg.smoothing >= 0 && cfg.smoothing <= 100) {
-      dom.param('smoothing').value = cfg.smoothing;
-      dom.display('smoothing').textContent = cfg.smoothing;
-    }
-    if (Number.isInteger(cfg.contrast) && cfg.contrast >= 0 && cfg.contrast <= 100) {
-      dom.param('contrast').value = cfg.contrast;
-      dom.display('contrast').textContent = cfg.contrast;
+    // Apply server defaults to rack slots via FxSlot.setValue()
+    const cfgSlots = {
+      threshold:      { min: 50,  max: 250 },
+      blue_tolerance: { min: 20,  max: 200 },
+      smoothing:      { min: 0,   max: 100 },
+      contrast:       { min: 0,   max: 100 },
+    };
+    for (const [name, range] of Object.entries(cfgSlots)) {
+      if (Number.isInteger(cfg[name]) && cfg[name] >= range.min && cfg[name] <= range.max) {
+        const slot = fxRack.get(name);
+        if (slot) slot.setValue(cfg[name]);
+      }
     }
   })
   .catch(() => {});

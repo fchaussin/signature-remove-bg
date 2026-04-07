@@ -396,6 +396,10 @@ input[type=range] {
   flex-direction: column;
   gap: .4rem;
   margin-bottom: 1rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: .5rem;
 }
 
 .rack-slot {
@@ -404,9 +408,9 @@ input[type=range] {
   gap: .6rem;
   background: var(--color-surface);
   padding: .6rem .75rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   border: 2px solid var(--color-border);
-  transition: border-color .15s, opacity .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s;
 
   &.dragging {
     opacity: .4;
@@ -417,10 +421,9 @@ input[type=range] {
     box-shadow: 0 0 0 2px rgba(74, 144, 217, .25);
   }
 
-  &.disabled {
-    opacity: .45;
-
-    & .rack-body { pointer-events: none; }
+  &.disabled .rack-body {
+    opacity: .35;
+    pointer-events: none;
   }
 }
 
@@ -454,7 +457,7 @@ input[type=range] {
 .rack-toggle-mark {
   position: absolute;
   inset: 0;
-  background: var(--color-border-muted);
+  background: var(--color-text-muted);
   border-radius: 9px;
   transition: background .2s;
 
