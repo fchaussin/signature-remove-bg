@@ -37,9 +37,9 @@ Open `http://localhost:8000` in a browser.
 ![Upload zone](static/screenshots/dropzone.png)
 
 Three import methods:
-- **Drag & drop** a scan, capture or image onto the upload zone
-- **Click** the zone to open the file picker
-- **Ctrl+V** anywhere to paste a screenshot from the clipboard
+1. **Drag & drop** a scan, capture or image onto the upload zone
+2. **Click** the zone to open the file picker
+3. **Ctrl+V** anywhere to paste a screenshot from the clipboard
 
 The upload zone stays visible at the top of the page so you can load a new image at any time.
 
@@ -54,6 +54,7 @@ After uploading, a settings panel appears with instant preview:
 | Mode | `Auto` (dark + blue), `Dark only`, `Blue only` |
 | Luminosity threshold | Sensitivity to dark pixels (50–250) |
 | Blue tolerance | Sensitivity to blue tints (20–200) |
+| Edge smoothing | Anti-aliasing width on signature edges (0–100) |
 | Format | PNG or WebP |
 
 Each change triggers automatic re-extraction (debounced at 300 ms).
@@ -114,6 +115,7 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | `mode` | string | `auto` | `auto` (dark + blue), `dark` (dark only), `blue` (blue only) |
 | `threshold` | int | `220` | Luminosity threshold (50–250). Higher = more pixels captured |
 | `blue_tolerance` | int | `80` | Blue sensitivity (20–200) |
+| `smoothing` | int | `30` | Edge smoothing width (0–100). 0 = hard edges, higher = smoother anti-aliasing |
 | `format` | string | `png` | Output format: `png` or `webp` |
 
 **Body**: `multipart/form-data` with a `file` field containing the image.
@@ -142,6 +144,10 @@ curl -X POST "http://localhost:8000/extract?mode=blue" \
 
 # Adjusted threshold for grayish scans
 curl -X POST "http://localhost:8000/extract?threshold=200" \
+  -F "file=@scan.jpg" -o signature.png
+
+# Smoother edges (anti-aliasing)
+curl -X POST "http://localhost:8000/extract?smoothing=60" \
   -F "file=@scan.jpg" -o signature.png
 
 # WebP output
@@ -195,6 +201,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_MODE` | `auto` | Default extraction mode (`auto`, `dark`, `blue`) |
 | `DEFAULT_THRESHOLD` | `220` | Default luminosity threshold (50–250) |
 | `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
+| `DEFAULT_SMOOTHING` | `30` | Default edge smoothing (0–100) |
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
@@ -204,7 +211,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 
 - **Runtime**: Python 3.12 / FastAPI / Uvicorn
 - **Dependencies**: Pillow, NumPy, python-multipart
-- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection
+- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + gradient edge smoothing
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)
 - **Output format**: PNG or WebP with alpha channel (transparent background)
 - **Docker limits**: 128 MB RAM, 1 CPU (configurable in `docker-compose.yml`)
@@ -216,6 +223,8 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 - **Very faint signature**: raise threshold (`threshold=200–220`)
 - **Background noise captured**: lower threshold (`threshold=120–150`)
 - **Light blue pen**: lower `blue_tolerance` (`blue_tolerance=40–60`)
+- **Jagged / aliased edges**: increase `smoothing` (`smoothing=50–80`)
+- **Crisp, sharp edges needed**: set `smoothing=0` for binary mask
 
 ## License
 
