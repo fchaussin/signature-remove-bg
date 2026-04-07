@@ -99,6 +99,10 @@ button {
     font-size: var(--font-sm);
     font-weight: 500;
   }
+
+  &.field-btn {
+    justify-content: flex-end;
+  }
 }
 
 select,

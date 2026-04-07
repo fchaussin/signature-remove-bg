@@ -720,8 +720,8 @@ function initContrast() {
     debouncedContrast();
   };
 
-  // Open contrast overlay
-  dom.extractedPanel.querySelector('[data-action="contrast"]').onclick = () => {
+  // Open contrast overlay (button is in .controls bar)
+  dom.editor.querySelector('[data-action="contrast"]').onclick = () => {
     if (!lastExtractedBlob) return;
     contrastImg.onload = () => {
       contrastScale = fitScale(contrastImg.width, contrastImg.height, window.innerWidth * 0.85, window.innerHeight * 0.55);
