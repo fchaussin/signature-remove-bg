@@ -796,7 +796,15 @@ document.addEventListener('paste', e => {
 });
 
 // Global controls (outside rack)
-dom.param('mode').onchange   = debouncedExtract;
+dom.param('mode').onchange = () => {
+  const blueSlot = fxRack.get('blue_tolerance');
+  if (blueSlot) {
+    const mode = dom.param('mode').value;
+    const hidden = mode !== 'auto' && mode !== 'blue';
+    blueSlot.el.style.display = hidden ? 'none' : '';
+  }
+  debouncedExtract();
+};
 dom.param('format').onchange = debouncedExtract;
 
 // Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
@@ -831,6 +839,7 @@ fetch('/config')
 
     if (VALID_MODES.has(cfg.mode)) {
       dom.param('mode').value = cfg.mode;
+      dom.param('mode').onchange();
     }
     if (VALID_FORMATS.has(cfg.format)) {
       dom.param('format').value = cfg.format;
