@@ -441,8 +441,7 @@ function initZoom() {
   dom.originalPanel.querySelector('[data-action="zoom"]').onclick = () => {
     if (dom.originalImg.src) openZoom(dom.originalImg.src);
   };
-  dom.extractedPanel.querySelector('[data-action="zoom"]').onclick = e => {
-    e.stopPropagation();
+  dom.extractedPanel.querySelector('[data-action="zoom"]').onclick = () => {
     if (dom.extractedImg.src) openZoom(dom.extractedImg.src);
   };
 
@@ -736,8 +735,8 @@ function initCompareSlider() {
     else if (e.key === 'ArrowRight') setPosition(parseFloat(dom.compareHandle.style.left) + step);
   });
 
-  // Initialize at 50%
-  setPosition(50);
+  // Initialize fully showing the extracted image
+  setPosition(0);
 }
 
 /** Sync the comparison "before" image with the current original source. */
@@ -805,6 +804,9 @@ initCrop();
 initBase64();
 
 // i18n — detect browser language and apply translations
+// Inject SVG icons into all [data-icon] placeholders
+Icon.inject();
+
 i18n.init();
 
 // Load server defaults and apply to controls (OWASP A08 — validate response shape)
