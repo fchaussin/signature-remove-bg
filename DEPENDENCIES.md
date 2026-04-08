@@ -52,14 +52,14 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 - **Why**: Encode extracted images as base64 data URIs for the `output=base64` API response. Part of the Python standard library — no external package required.
 - **How**: `base64.b64encode()` converts the in-memory PNG/WebP buffer to an ASCII string, wrapped in a `data:image/…;base64,…` URI and returned as JSON.
 - **Watch out**:
-  - Base64 encoding increases payload size by ~33%. A dedicated `MAX_BASE64_MB` env var (default 10 MB) caps the encoded response size and returns `FILE_TOO_LARGE` if exceeded (OWASP A04).
-  - The response includes `Cache-Control: no-store` to prevent caching of image data (OWASP A04).
-  - On the frontend, the data URI is validated against a strict regex (`data:image/(png|webp);base64,[A-Za-z0-9+/\n]+=*`) and the mime type is whitelisted to `image/png` and `image/webp` only (OWASP A03/A08). The textarea is cleared on popup close to avoid leaving image data in the DOM.
+  - Base64 encoding increases payload size by ~33%. A dedicated `MAX_BASE64_MB` env var (default 10 MB) caps the encoded response size and returns `FILE_TOO_LARGE` if exceeded.
+  - The response includes `Cache-Control: no-store` to prevent caching of image data.
+  - On the frontend, the data URI is validated against a strict regex and the mime type is whitelisted. The textarea is cleared on popup close.
 
 ### secure `1.0.1`
 
 - **Why**: Sets HTTP security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) using typed builders instead of error-prone raw strings. Zero external dependencies.
-- **How**: `Secure()` object configured with `ContentSecurityPolicy`, `PermissionsPolicy`, `XFrameOptions`, `ReferrerPolicy` builders. Applied via `set_headers()` (synchronous) in a Starlette middleware.
+- **How**: `Secure()` object configured with `ContentSecurityPolicy`, `XFrameOptions`, `ReferrerPolicy` builders. Applied via `set_headers()` (synchronous) in a Starlette middleware. `Permissions-Policy` is set manually as a raw header.
 - **Watch out**:
   - The `Secure()` constructor uses short parameter names that differ from the header names: `xfo` (X-Frame-Options), `referrer` (Referrer-Policy), `csp` (Content-Security-Policy), `permissions` (Permissions-Policy), `xcto` (X-Content-Type-Options). Refer to the [source](https://github.com/TypeError/secure) for the full list.
   - Default headers from `secure` are strict. Our custom CSP allows `'unsafe-inline'` for styles and `blob:` for images — both are required for the app to function.
@@ -79,7 +79,7 @@ No build step, no bundler. All JS is loaded via `<script>` tags in `index.html`.
 - **Watch out**:
   - The file is **vendored** (not loaded from CDN) to comply with the `Content-Security-Policy: script-src 'self'` header. If switching to a CDN, the CSP must be updated.
   - To upgrade: download the new version from [npmjs.com/package/dompurify](https://www.npmjs.com/package/dompurify) and replace `static/vendor/purify.min.js`.
-  - DOMPurify is the only JS dependency. The rest of the frontend (`app.js`, `i18n.js`) is vanilla JS with no external dependencies.
+  - DOMPurify is the only external JS dependency. The rest of the frontend is vanilla JS split across: `constants.js` (shared constants), `utils.js` (pure functions), `ui.js` (UI components), `app.js` (state + orchestration), `fx-slot.js`/`fx-rack.js` (effects).
 
 ### Icon (`icons.js`, project code)
 
@@ -92,15 +92,15 @@ No build step, no bundler. All JS is loaded via `<script>` tags in `index.html`.
 
 - **Where**: `static/fx-slot.js`, `static/fx-rack.js`
 - **Why**: Encapsulate effect slot UI (toggle + slider + display) and rack management (ordering, drag & drop) using SRP. `app.js` orchestrates via a single `onChange` callback.
-- **How**: `FxRack` scans `.rack-slot` elements, instantiates `FxSlot` for each, and manages drag & drop reordering. Each slot exposes `setValue()`, `value`, `enabled`, and `name`.
-- **Watch out**: New effects = new `.rack-slot` in HTML + entry in `PARAM_RANGES` — no JS changes needed in FxRack/FxSlot. Slot order in the DOM determines initial processing order.
+- **How**: `FxRack` creates `FxSlot` instances dynamically (no static HTML) and manages drag & drop reordering. Each slot exposes `setValue()`, `value`, `enabled`, and `name`. The rack is initialized from server defaults via `/config`.
+- **Watch out**: New effects require an entry in `PARAM_RANGES` (constants.js) and `FxRack.EFFECTS` (fx-rack.js), plus a `<option>` in the rack `<select>` in HTML.
 
 ### Clipboard API (browser built-in)
 
 - **Where**: `app.js` — Base64 popup copy button + API doc cURL copy button
 - **Why**: Copy content to the clipboard (base64 data URIs, cURL commands). Uses the standard `navigator.clipboard.writeText()` API — no external library.
-- **How**: Async call to `navigator.clipboard.writeText()`. In the Base64 popup, on success the button shows "Copied!" feedback for 1.5 s; on failure, falls back to `textarea.select()` for manual Ctrl+C. In the API doc block, copies a ready-to-use `curl` command reflecting current parameters.
-- **Watch out**: `navigator.clipboard` requires a secure context (HTTPS or localhost). This is already satisfied by typical deployments. The textarea value is cleared on overlay close to avoid leaving image data in the DOM (OWASP A04).
+- **How**: Async call to `navigator.clipboard.writeText()`. The text value is captured before the async call to avoid race conditions with dialog close. In the Base64 popup, on success the button shows "Copied!" feedback for 1.5 s; on failure, falls back to `textarea.select()` for manual Ctrl+C.
+- **Watch out**: `navigator.clipboard` requires a secure context (HTTPS or localhost). This is already satisfied by typical deployments.
 
 ---
 

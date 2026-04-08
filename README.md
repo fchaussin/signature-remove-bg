@@ -172,13 +172,9 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `mode` | string | `auto` | `auto` (dark + blue), `dark` (dark only), `blue` (blue only) |
-| `threshold` | int | `220` | Luminosity threshold (50–250). Higher = more pixels captured |
-| `blue_tolerance` | int | `80` | Blue sensitivity (20–200) |
-| `smoothing` | int | `30` | Edge smoothing width (0–100). 0 = hard edges, higher = smoother anti-aliasing |
-| `contrast` | int | `0` | Contrast boost for faint ink (0–100). 0 = no change |
+| `steps` | string | *(empty)* | Pipeline steps: `effect:value,effect:value,...` (e.g. `threshold:200,smoothing:30`). Same effect may appear multiple times. Empty = server defaults |
 | `format` | string | `png` | Output format: `png` or `webp` |
 | `output` | string | `binary` | Response type: `binary` (image blob) or `base64` (JSON with data URI) |
-| `order` | string | *(empty)* | Comma-separated effect order (e.g. `threshold,blue_tolerance,contrast,smoothing`). Empty = default order |
 
 **Body**: `multipart/form-data` with a `file` field containing the image.
 
@@ -204,25 +200,17 @@ curl -X POST "http://localhost:8000/extract" \
 curl -X POST "http://localhost:8000/extract?mode=blue" \
   -F "file=@scan.jpg" -o signature.png
 
-# Adjusted threshold for grayish scans
-curl -X POST "http://localhost:8000/extract?threshold=200" \
+# Custom pipeline (threshold + smoothing)
+curl -X POST "http://localhost:8000/extract?steps=threshold:200,smoothing:60" \
   -F "file=@scan.jpg" -o signature.png
 
-# Smoother edges (anti-aliasing)
-curl -X POST "http://localhost:8000/extract?smoothing=60" \
+# Full pipeline with custom order (smoothing before threshold)
+curl -X POST "http://localhost:8000/extract?steps=smoothing:30,threshold:200,blue_tolerance:80,contrast:50" \
   -F "file=@scan.jpg" -o signature.png
 
 # WebP output
 curl -X POST "http://localhost:8000/extract?format=webp" \
   -F "file=@scan.jpg" -o signature.webp
-
-# Boost contrast for faint ink
-curl -X POST "http://localhost:8000/extract?contrast=50" \
-  -F "file=@scan.jpg" -o signature.png
-
-# Custom effect order (smoothing before threshold)
-curl -X POST "http://localhost:8000/extract?order=smoothing,threshold,blue_tolerance,contrast" \
-  -F "file=@scan.jpg" -o signature.png
 
 # Base64 data URI (JSON response)
 curl -X POST "http://localhost:8000/extract?output=base64" \
@@ -232,7 +220,7 @@ curl -X POST "http://localhost:8000/extract?output=base64" \
 # Auto-detect optimal settings
 curl -X POST "http://localhost:8000/analyze" \
   -F "file=@scan.jpg"
-# → {"mode":"auto","threshold":195,"blue_tolerance":80,"smoothing":30,"contrast":20}
+# → {"mode":"auto","steps":[{"effect":"threshold","value":195},{"effect":"blue_tolerance","value":80},...]}
 ```
 
 ### `POST /analyze` — Auto-detect optimal settings
@@ -244,7 +232,15 @@ Analyzes an image and returns suggested extraction parameters.
 **Response** (JSON):
 
 ```json
-{"mode": "auto", "threshold": 195, "blue_tolerance": 80, "smoothing": 30, "contrast": 20}
+{
+  "mode": "auto",
+  "steps": [
+    {"effect": "threshold", "value": 195},
+    {"effect": "blue_tolerance", "value": 80},
+    {"effect": "contrast", "value": 20},
+    {"effect": "smoothing", "value": 30}
+  ]
+}
 ```
 
 | HTTP | Code | Description |
@@ -267,7 +263,10 @@ app.py                 # FastAPI backend + extraction logic + auto-detect
 static/
   index.html           # HTML structure
   style.css            # Styles (CSS variables, responsive, a11y)
-  app.js               # Frontend logic (OWASP-hardened)
+  constants.js         # Shared constants (validation whitelists, ranges, limits)
+  utils.js             # Pure utility functions (debounce, XHR, validation, base64)
+  ui.js                # Reusable UI components (dialog, bgPicker, compareSlider)
+  app.js               # App state + orchestration (upload, extract, presets)
   fx-slot.js           # FxSlot — individual effect control (toggle + slider)
   fx-rack.js           # FxRack — ordered effect collection + drag & drop
   icons.js             # SVG icon provider (Lucide-style)
@@ -310,8 +309,9 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `ANALYZE_ON_UPLOAD` | `true` | Call `/analyze` on each upload to suggest optimal presets via the Auto button |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
-| `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB (OWASP A04) |
+| `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB |
 | `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
+| `MAX_CONCURRENT_OPS` | `4` | Maximum concurrent CPU-heavy requests (extract/analyze) |
 
 ## Technical specifications
 
