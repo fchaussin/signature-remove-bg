@@ -75,7 +75,7 @@ ANTIALIAS_SM = 15
 
 # Blue ratio thresholds for mode detection
 BLUE_RATIO_HIGH = 0.4       # above → MODE_BLUE
-BLUE_RATIO_LOW  = 0.1       # below → MODE_DARK
+BLUE_RATIO_LOW  = 0.25      # below → MODE_DARK (raised to avoid JPEG chroma noise false positives)
 
 # Minimum ink pixels for reliable analysis
 MIN_INK_PIXELS = 50
@@ -341,8 +341,8 @@ def extract_signature(
         steps = [
             ("threshold", DEFAULT_THRESHOLD),
             ("blue_tolerance", DEFAULT_BLUE_TOLERANCE),
-            ("smoothing", DEFAULT_SMOOTHING),
             ("contrast", DEFAULT_CONTRAST),
+            ("smoothing", DEFAULT_SMOOTHING),
         ]
 
     r, g, b = _rgb_channels(image)
@@ -366,20 +366,31 @@ def extract_signature(
 #  5c. Preset detection (SRP — one function per parameter)
 # ---------------------------------------------------------------------------
 
-def _otsu_threshold(lum: np.ndarray) -> int:
-    """Optimal binarisation threshold via Otsu's method."""
-    hist, _ = np.histogram(lum.ravel(), bins=256, range=(0, 256))
+def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
+    """
+    Two-pass threshold detection.
+    Returns (refined, coarse) — refined for extraction, coarse for analysis.
+
+    1. Otsu on pixels < 220 to separate foreground from background (coarse)
+    2. Otsu again on pixels below coarse to separate ink from gray paper (refined)
+    """
+    # Pass 1 — coarse Otsu on pixels < 220 (exclude pure white)
+    dark_lum = lum[lum < 220]
+    if dark_lum.size == 0:
+        return DEFAULT_THRESHOLD, DEFAULT_THRESHOLD
+
+    hist, _ = np.histogram(dark_lum.ravel(), bins=220, range=(0, 220))
     total = hist.sum()
     if total == 0:
-        return DEFAULT_THRESHOLD
+        return DEFAULT_THRESHOLD, DEFAULT_THRESHOLD
 
-    sum_all = np.dot(np.arange(256), hist)
+    sum_all = np.dot(np.arange(220), hist)
     sum_bg = 0.0
     w_bg = 0
-    best_thresh = DEFAULT_THRESHOLD
+    coarse = DEFAULT_THRESHOLD
     best_var = -1.0
 
-    for t in range(256):
+    for t in range(220):
         w_bg += hist[t]
         if w_bg == 0:
             continue
@@ -392,18 +403,62 @@ def _otsu_threshold(lum: np.ndarray) -> int:
         var = w_bg * w_fg * (mean_bg - mean_fg) ** 2
         if var > best_var:
             best_var = var
-            best_thresh = t
+            coarse = t
 
-    return _clamp(best_thresh, "threshold")
+    # Pass 2 — run Otsu again on pixels below the coarse threshold
+    # This separates actual ink from the gray "paper" zone
+    ink = lum[lum < coarse]
+    if ink.size < MIN_INK_PIXELS:
+        return _clamp(coarse, "threshold"), _clamp(coarse, "threshold")
+
+    hist2, _ = np.histogram(ink.ravel(), bins=coarse, range=(0, coarse))
+    total2 = hist2.sum()
+    sum_all2 = np.dot(np.arange(coarse), hist2)
+    sum_bg2 = 0.0
+    w_bg2 = 0
+    refined = coarse
+    best_var2 = -1.0
+
+    for t in range(coarse):
+        w_bg2 += hist2[t]
+        if w_bg2 == 0:
+            continue
+        w_fg2 = total2 - w_bg2
+        if w_fg2 == 0:
+            break
+        sum_bg2 += t * hist2[t]
+        mean_bg2 = sum_bg2 / w_bg2
+        mean_fg2 = (sum_all2 - sum_bg2) / w_fg2
+        v = w_bg2 * w_fg2 * (mean_bg2 - mean_fg2) ** 2
+        if v > best_var2:
+            best_var2 = v
+            refined = t
+    return _clamp(refined, "threshold"), _clamp(coarse, "threshold")
 
 
-def _detect_mode(ink_b_mask: np.ndarray, ink_count: int) -> str:
-    """Determine dominant ink colour from blue chrominance ratio."""
-    ratio = int(np.count_nonzero(ink_b_mask)) / ink_count
-    if ratio > BLUE_RATIO_HIGH:
-        return MODE_BLUE
+def _detect_mode(ink_b_mask: np.ndarray, ink_count: int,
+                 b: np.ndarray, r: np.ndarray, g: np.ndarray) -> str:
+    """Determine dominant ink colour from blue chrominance ratio and strength.
+
+    A dark ballpoint pen may have slight blue chrominance but should be treated
+    as dark ink. We require both a minimum ratio of blue pixels AND a minimum
+    median blue chrominance (B - max(R,G)) to classify as blue.
+    """
+    blue_count = int(np.count_nonzero(ink_b_mask))
+    ratio = blue_count / ink_count
+
     if ratio < BLUE_RATIO_LOW:
         return MODE_DARK
+
+    # Check that blue pixels are actually vivid (not just dark-ish blue tint)
+    if blue_count >= MIN_INK_PIXELS:
+        chroma = b[ink_b_mask] - np.maximum(r[ink_b_mask], g[ink_b_mask])
+        median_chroma = float(np.median(chroma))
+        if median_chroma < 40:
+            return MODE_DARK  # weak blue — treat as dark ink (e.g. dark ballpoint)
+
+    if ratio > BLUE_RATIO_HIGH:
+        return MODE_BLUE
     return MODE_AUTO
 
 
@@ -416,8 +471,14 @@ def _detect_blue_tolerance(b: np.ndarray, r: np.ndarray, g: np.ndarray,
     return _clamp(int(np.median(blue_chroma)), "blue_tolerance")
 
 
+_SMOOTHING_REF_SIZE = 1000  # reference image dimension (long edge) for gradient normalization
+
 def _detect_smoothing(lum: np.ndarray, ink_mask: np.ndarray) -> int:
-    """Optimal smoothing from edge sharpness (gradient magnitude)."""
+    """Optimal smoothing from edge sharpness (gradient magnitude).
+
+    Gradients are normalized to a reference resolution so that the same
+    physical signature at different scan resolutions yields similar smoothing.
+    """
     gy = np.abs(lum[2:, 1:-1] - lum[:-2, 1:-1])
     gx = np.abs(lum[1:-1, 2:] - lum[1:-1, :-2])
     grad = np.sqrt(gx ** 2 + gy ** 2)
@@ -425,17 +486,25 @@ def _detect_smoothing(lum: np.ndarray, ink_mask: np.ndarray) -> int:
     if np.count_nonzero(edge_mask) < MIN_INK_PIXELS:
         return DEFAULT_SMOOTHING
     median_grad = float(np.median(grad[edge_mask]))
-    return _clamp(int(80 - median_grad * 0.6), "smoothing")
+
+    # Normalize gradient to reference resolution — smaller images have
+    # proportionally weaker gradients for the same physical edge
+    long_edge = max(lum.shape[0], lum.shape[1])
+    scale = _SMOOTHING_REF_SIZE / long_edge if long_edge > 0 else 1.0
+    normalized_grad = median_grad * scale
+
+    return _clamp(int(30 - normalized_grad * 1.5), "smoothing")
 
 
 def _detect_contrast(ink_lum: np.ndarray) -> int:
-    """Optimal contrast from median ink luminosity (faded ink → more boost)."""
+    """Optimal contrast from median ink luminosity (faded ink → more boost).
+
+    Scale: lum 50 → 0 (already dark), lum 80 → ~30, lum 120 → ~70, lum 150+ → ~100.
+    """
     median = float(np.median(ink_lum))
-    if median > 140:
-        return _clamp(int((median - 100) * 0.8), "contrast")
-    if median > 100:
-        return _clamp(int((median - 80) * 0.5), "contrast")
-    return 0
+    if median < 50:
+        return 0  # ink is already dark enough
+    return _clamp(int((median - 50) * 1.0), "contrast")
 
 
 def detect_presets(image: Image.Image) -> dict:
@@ -447,8 +516,10 @@ def detect_presets(image: Image.Image) -> dict:
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
 
-    threshold = _otsu_threshold(lum)
-    ink_mask = lum < threshold
+    threshold, coarse = _otsu_threshold(lum)
+    # Use coarse threshold for analysis (includes lighter ink strokes)
+    # Use refined threshold for the extraction step value
+    ink_mask = lum < coarse
     ink_count = int(np.count_nonzero(ink_mask))
 
     if ink_count < MIN_INK_PIXELS:
@@ -457,8 +528,8 @@ def detect_presets(image: Image.Image) -> dict:
             "steps": [
                 {"effect": "threshold",      "value": threshold},
                 {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
-                {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
                 {"effect": "contrast",       "value": DEFAULT_CONTRAST},
+                {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
             ],
         }
 
@@ -466,12 +537,12 @@ def detect_presets(image: Image.Image) -> dict:
     ink_b_mask = _blue_mask(ri, gi, bi)
 
     return {
-        "mode": _detect_mode(ink_b_mask, ink_count),
+        "mode": _detect_mode(ink_b_mask, ink_count, bi, ri, gi),
         "steps": [
             {"effect": "threshold",      "value": threshold},
             {"effect": "blue_tolerance", "value": _detect_blue_tolerance(bi, ri, gi, ink_b_mask)},
-            {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask)},
             {"effect": "contrast",       "value": _detect_contrast(lum[ink_mask])},
+            {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask)},
         ],
     }
 
@@ -561,8 +632,8 @@ async def config():
         "steps": [
             {"effect": "threshold",      "value": DEFAULT_THRESHOLD},
             {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
-            {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
             {"effect": "contrast",       "value": DEFAULT_CONTRAST},
+            {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
         ],
     }, headers={
         "Cache-Control": "public, max-age=3600",      # A04 — immutable defaults, safe to cache
