@@ -34,7 +34,7 @@ Open `http://localhost:8000` in a browser.
 
 ### Uploading an image
 
-![Upload zone](static/screenshots/dropzone.png)
+![Upload zone](frontend/screenshots/dropzone.png)
 
 Three import methods:
 1. **Drag & drop** a scan, capture or image onto the upload zone
@@ -45,7 +45,7 @@ The upload zone stays visible at the top of the page so you can load a new image
 
 ### Real-time settings
 
-![Editor view](static/screenshots/editor.png)
+![Editor view](frontend/screenshots/editor.png)
 
 After uploading, a settings panel appears with instant preview:
 
@@ -107,13 +107,13 @@ The **`</>`** button in the preset bar toggles a Swagger-style API block showing
 
 ### Cropping
 
-![Crop tool](static/screenshots/crop.png)
+![Crop tool](frontend/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
 
 ### Actual-size zoom
 
-![Zoom popup](static/screenshots/zoom.png)
+![Zoom popup](frontend/screenshots/zoom.png)
 
 Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan.
 
@@ -161,7 +161,7 @@ The interface detects the browser language and loads the appropriate translation
 - English (default fallback)
 - French
 
-Translations are stored in `static/lang/*.json`. Adding a new language only requires creating a new JSON file.
+Translations are stored in `frontend/lang/*.json`. Adding a new language only requires creating a new JSON file.
 
 ## REST API
 
@@ -259,8 +259,9 @@ curl http://localhost:8000/health
 ## Project structure
 
 ```
-app.py                 # FastAPI backend + extraction logic + auto-detect
-static/
+backend/
+  app.py               # FastAPI backend + extraction logic + auto-detect
+frontend/
   index.html           # HTML structure
   style.css            # Styles (CSS variables, responsive, a11y)
   constants.js         # Shared constants (validation whitelists, ranges, limits)
