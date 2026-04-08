@@ -146,6 +146,7 @@ dom.apiDetails       = dom.editor.querySelector('.api-doc-details');
 dom.apiToggleBtn     = dom.editor.querySelector('[data-action="toggle-api"]');
 dom.apiExpandBtn     = dom.editor.querySelector('[data-action="expand-api"]');
 dom.apiCopyBtn       = dom.editor.querySelector('[data-action="copy-curl"]');
+dom.apiBase64Toggle  = dom.editor.querySelector('[data-action="toggle-base64"]');
 
 // Render mode
 dom.liveToggle       = dom.editor.querySelector('[data-action="toggle-live"]');
@@ -655,10 +656,12 @@ function markPresetDirty() {
 /** Refresh the API doc block with current parameter values. */
 function syncApiDoc() {
   if (!fxRack || dom.apiDoc.classList.contains('collapsed')) return;
-  const params = buildExtractParams();
+  const b64 = dom.apiBase64Toggle && dom.apiBase64Toggle.checked;
+  const extra = b64 ? { output: 'base64' } : {};
+  const params = buildExtractParams(extra);
   dom.apiEndpoint.textContent = '/extract?' + params.toString();
 
-  // Params table — show mode, then each step, then format
+  // Params table — show mode, then each step, then format, then output
   dom.apiParamsBody.textContent = '';
   const addRow = (name, val, type, range) => {
     const tr = document.createElement('tr');
@@ -675,10 +678,13 @@ function syncApiDoc() {
     addRow(step.effect, step.value, 'int', range ? range.min + '–' + range.max : '—');
   }
   addRow('format', dom.param('format').value, 'string', '—');
+  if (b64) addRow('output', 'base64', 'string', '—');
 
   // Response mime
   const fmt = dom.param('format').value;
-  dom.apiResponseMime.textContent = 'image/' + (fmt === 'webp' ? 'webp' : 'png');
+  dom.apiResponseMime.textContent = b64
+    ? 'application/json'
+    : 'image/' + (fmt === 'webp' ? 'webp' : 'png');
 }
 
 
@@ -1175,10 +1181,14 @@ dom.apiExpandBtn.onclick = () => {
 };
 
 dom.apiCopyBtn.onclick = () => {
-  const params = buildExtractParams();
+  const b64 = dom.apiBase64Toggle && dom.apiBase64Toggle.checked;
+  const extra = b64 ? { output: 'base64' } : {};
+  const params = buildExtractParams(extra);
   const curl = `curl -X POST "${location.origin}/extract?${params}" -F "file=@image.png"`;
   navigator.clipboard.writeText(curl);
 };
+
+dom.apiBase64Toggle.onchange = syncApiDoc;
 
 // Render mode — toggle, button, Ctrl+Enter
 dom.liveToggle.onchange = () => setLivePreview(dom.liveToggle.checked);
