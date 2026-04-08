@@ -97,6 +97,17 @@ const Icon = (() => {
       '<polyline points="8 6 2 12 8 18"/>',
     ],
 
+    // Chevron down — expand/collapse
+    'chevron-down': [
+      '<polyline points="6 9 12 15 18 9"/>',
+    ],
+
+    // Clipboard — copy
+    clipboard: [
+      '<rect x="8" y="2" width="8" height="4" rx="1"/>',
+      '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    ],
+
     // Split columns — compare toggle
     columns: [
       '<rect x="3" y="3" width="18" height="18" rx="2"/>',

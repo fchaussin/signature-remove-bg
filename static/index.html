@@ -43,6 +43,30 @@
         </select>
         <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" data-icon="save" data-icon-size="14"></button>
         <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" data-icon="close" data-icon-size="14"></button>
+        <button class="btn-preset btn-api-toggle" data-action="toggle-api" title="API" data-icon="code" data-icon-size="14"></button>
+      </div>
+    </div>
+
+    <div class="api-doc" hidden>
+      <div class="api-doc-header">
+        <span class="api-doc-method">POST</span>
+        <code class="api-doc-endpoint"></code>
+        <button class="btn-api-copy" data-action="copy-curl" data-icon="clipboard" data-icon-size="12"></button>
+        <button class="btn-api-expand" data-action="expand-api" data-icon="chevron-down" data-icon-size="14"></button>
+      </div>
+      <div class="api-doc-details" hidden>
+        <table class="api-doc-params">
+          <thead><tr><th>Parameter</th><th>Value</th><th>Type</th><th>Range</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="api-doc-body">
+          <span class="api-doc-body-label">Body</span>
+          <code>multipart/form-data — file: &lt;image&gt;</code>
+        </div>
+        <div class="api-doc-response">
+          <span class="api-doc-body-label">Response</span>
+          <code class="api-doc-response-mime"></code>
+        </div>
       </div>
     </div>
 

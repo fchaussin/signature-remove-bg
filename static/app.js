@@ -288,6 +288,16 @@ dom.confirmSaveBtn    = dom.savePresetOverlay.querySelector('[data-action="confi
 dom.deletePresetMsg   = dom.deletePresetOverlay.querySelector('.delete-preset-msg');
 dom.confirmDeleteBtn  = dom.deletePresetOverlay.querySelector('[data-action="confirm-delete"]');
 
+// API doc
+dom.apiDoc           = dom.editor.querySelector('.api-doc');
+dom.apiEndpoint      = dom.editor.querySelector('.api-doc-endpoint');
+dom.apiParamsBody    = dom.editor.querySelector('.api-doc-params tbody');
+dom.apiResponseMime  = dom.editor.querySelector('.api-doc-response-mime');
+dom.apiDetails       = dom.editor.querySelector('.api-doc-details');
+dom.apiToggleBtn     = dom.editor.querySelector('[data-action="toggle-api"]');
+dom.apiExpandBtn     = dom.editor.querySelector('[data-action="expand-api"]');
+dom.apiCopyBtn       = dom.editor.querySelector('[data-action="copy-curl"]');
+
 
 /* ===================================================================
  *  5. Mutable state — grouped by feature
@@ -786,6 +796,8 @@ function syncPresetUI() {
 
   // Delete button: active only when a preset is loaded AND state is clean
   dom.deletePresetBtn.disabled = !(hasPreset && !dirty);
+
+  syncApiDoc();
 }
 
 /**
@@ -799,6 +811,28 @@ function markPresetDirty() {
     presetSnapshot = '__force_dirty__';
   }
   syncPresetUI();
+}
+
+
+/* ---- API doc — live request preview ---- */
+
+/** Refresh the API doc block with current parameter values. */
+function syncApiDoc() {
+  if (!fxRack || dom.apiDoc.hidden) return;
+  const params = buildExtractParams();
+  dom.apiEndpoint.textContent = '/extract?' + params.toString();
+
+  // Params table
+  const rows = [];
+  for (const [key, val] of params) {
+    const range = PARAM_RANGES[key];
+    rows.push(`<tr><td>${key}</td><td>${val}</td><td>${range ? 'int' : 'string'}</td><td>${range ? range.min + '–' + range.max : '—'}</td></tr>`);
+  }
+  dom.apiParamsBody.innerHTML = rows.join('');
+
+  // Response mime
+  const fmt = dom.param('format').value;
+  dom.apiResponseMime.textContent = 'image/' + (fmt === 'webp' ? 'webp' : 'png');
 }
 
 
@@ -1301,6 +1335,26 @@ dom.deletePresetOverlay.querySelector('[data-action="cancel"]').onclick = () => 
   closeDialog(dom.deletePresetOverlay);
 };
 registerDialog(dom.deletePresetOverlay);
+
+// API doc — toggle, expand, copy
+dom.apiToggleBtn.onclick = () => {
+  const show = dom.apiDoc.hidden;
+  dom.apiDoc.hidden = !show;
+  dom.apiToggleBtn.classList.toggle('active', show);
+  if (show) syncApiDoc();
+};
+
+dom.apiExpandBtn.onclick = () => {
+  const show = dom.apiDetails.hidden;
+  dom.apiDetails.hidden = !show;
+  dom.apiExpandBtn.classList.toggle('expanded', show);
+};
+
+dom.apiCopyBtn.onclick = () => {
+  const params = buildExtractParams();
+  const curl = `curl -X POST "${location.origin}/extract?${params}" -F "file=@image.png"`;
+  navigator.clipboard.writeText(curl);
+};
 
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
