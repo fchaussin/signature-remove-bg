@@ -298,6 +298,10 @@ dom.apiToggleBtn     = dom.editor.querySelector('[data-action="toggle-api"]');
 dom.apiExpandBtn     = dom.editor.querySelector('[data-action="expand-api"]');
 dom.apiCopyBtn       = dom.editor.querySelector('[data-action="copy-curl"]');
 
+// Render mode
+dom.liveToggle       = dom.editor.querySelector('[data-action="toggle-live"]');
+dom.renderBtn        = dom.editor.querySelector('[data-action="render"]');
+
 
 /* ===================================================================
  *  5. Mutable state — grouped by feature
@@ -337,6 +341,12 @@ let presetSnapshot = null;  // serialized query string when a preset was loaded 
 let activePresetName = '';  // name of the currently loaded preset ('' = Default)
 let defaultPresetQs = null; // snapshot of server defaults (captured after /config loads)
 
+// Render mode
+let renderModeSetting = 'auto';  // server setting: 'auto', 'live', 'manual'
+let autoManualPixels  = 4_000_000;
+let livePreview       = true;    // current client-side state
+let renderStale       = false;   // true when settings changed but not rendered (manual mode)
+
 // Rack — initialized in Bootstrap
 let fxRack = null;
 
@@ -352,6 +362,7 @@ function setBusy(busy) {
   if (!busy) {
     dom.progressBar.style.width = '';
     dom.progressBar.classList.remove('indeterminate');
+    clearRenderStale();
   }
 }
 
@@ -476,9 +487,11 @@ function loadFile(f) {
     naturalW = dom.originalImg.naturalWidth;
     naturalH = dom.originalImg.naturalHeight;
     checkResolution();
+    autoSwitchRenderMode();
     syncCompareBeforeImg();
   };
   dom.editor.classList.add('visible');
+  clearRenderStale();
   extractSignature();
   analyzeImage();  // parallel — suggests optimal presets via ✦ Auto button
 }
@@ -610,7 +623,7 @@ function applyPresets() {
   markPresetDirty();
 
   // Re-extract with the new parameters (presets stay available until next upload)
-  extractSignature();
+  requestExtract();
 }
 
 
@@ -833,6 +846,71 @@ function syncApiDoc() {
   // Response mime
   const fmt = dom.param('format').value;
   dom.apiResponseMime.textContent = 'image/' + (fmt === 'webp' ? 'webp' : 'png');
+}
+
+
+/* ---- Render mode — live / manual / auto ---- */
+
+/**
+ * Set live preview on or off. Updates UI toggle, render button, and stale state.
+ */
+function setLivePreview(on) {
+  livePreview = on;
+  dom.liveToggle.checked = on;
+  dom.renderBtn.hidden = on;
+  if (on) {
+    // Switching to live — immediately render if stale
+    if (renderStale) {
+      renderStale = false;
+      dom.editor.classList.remove('stale');
+      dom.renderBtn.classList.remove('stale');
+      extractSignature();
+    }
+  }
+}
+
+/**
+ * Mark the preview as stale (manual mode only).
+ * Called instead of extractSignature() when live preview is off.
+ */
+function markRenderStale() {
+  if (livePreview) return;
+  renderStale = true;
+  dom.editor.classList.add('stale');
+  dom.renderBtn.classList.add('stale');
+}
+
+/** Clear the stale indicator after a successful render. */
+function clearRenderStale() {
+  renderStale = false;
+  dom.editor.classList.remove('stale');
+  dom.renderBtn.classList.remove('stale');
+}
+
+/**
+ * Auto-switch to manual mode if the image exceeds the pixel threshold.
+ * Called after loading a new image (when renderModeSetting === 'auto').
+ */
+function autoSwitchRenderMode() {
+  if (renderModeSetting !== 'auto') return;
+  const pixels = naturalW * naturalH;
+  if (pixels > autoManualPixels && livePreview) {
+    setLivePreview(false);
+  } else if (pixels <= autoManualPixels && !livePreview) {
+    setLivePreview(true);
+  }
+}
+
+/**
+ * Debounced extract wrapper — respects render mode.
+ * In live mode: extracts immediately (debounced). In manual mode: marks stale.
+ */
+function requestExtract() {
+  if (livePreview) {
+    debouncedExtract();
+  } else {
+    markRenderStale();
+  }
 }
 
 
@@ -1252,11 +1330,11 @@ document.addEventListener('paste', e => {
 dom.param('mode').onchange = () => {
   syncBlueSlotVisibility();
   syncPresetUI();
-  debouncedExtract();
+  requestExtract();
 };
 dom.param('format').onchange = () => {
   syncPresetUI();
-  debouncedExtract();
+  requestExtract();
 };
 
 // Auto-detect button
@@ -1265,7 +1343,7 @@ dom.autoDetectBtn.onclick = applyPresets;
 // Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
 fxRack = new FxRack(document.querySelector('.rack'), {
   defaults: FX_DEFAULTS,
-  onChange: () => { syncPresetUI(); debouncedExtract(); },
+  onChange: () => { syncPresetUI(); requestExtract(); },
 });
 
 // Presets — wire after fxRack is ready
@@ -1281,7 +1359,7 @@ dom.presetSelect.onchange = () => {
     activePresetName = '';
     presetSnapshot = defaultPresetQs;
     syncPresetUI();
-    debouncedExtract();
+    requestExtract();
     return;
   }
   const map = loadPresetsMap();
@@ -1290,7 +1368,7 @@ dom.presetSelect.onchange = () => {
     activePresetName = name;
     presetSnapshot = serializePreset(); // snapshot after applying (accounts for clamping)
     syncPresetUI();
-    debouncedExtract();
+    requestExtract();
   }
 };
 
@@ -1356,6 +1434,21 @@ dom.apiCopyBtn.onclick = () => {
   navigator.clipboard.writeText(curl);
 };
 
+// Render mode — toggle, button, Ctrl+Enter
+dom.liveToggle.onchange = () => setLivePreview(dom.liveToggle.checked);
+
+dom.renderBtn.onclick = () => {
+  clearRenderStale();
+  extractSignature();
+};
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter' && !livePreview && currentFile) {
+    e.preventDefault();
+    dom.renderBtn.click();
+  }
+});
+
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
@@ -1393,6 +1486,18 @@ fetch('/config')
         const slot = fxRack.get(name);
         if (slot) slot.setValue(cfg[name]);
       }
+    }
+
+    // Render mode from server config
+    const VALID_RENDER = new Set(['live', 'manual', 'auto']);
+    if (VALID_RENDER.has(cfg.render_mode)) {
+      renderModeSetting = cfg.render_mode;
+      if (renderModeSetting === 'manual') setLivePreview(false);
+      else if (renderModeSetting === 'live') setLivePreview(true);
+      // 'auto' stays as default (live) until image loaded
+    }
+    if (typeof cfg.auto_manual_pixels === 'number' && cfg.auto_manual_pixels > 0) {
+      autoManualPixels = cfg.auto_manual_pixels;
     }
 
     // Capture server defaults as the "Default" preset

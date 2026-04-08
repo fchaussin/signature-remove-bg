@@ -97,6 +97,11 @@ const Icon = (() => {
       '<polyline points="8 6 2 12 8 18"/>',
     ],
 
+    // Play — render button
+    play: [
+      '<polygon points="6 3 20 12 6 21 6 3"/>',
+    ],
+
     // Chevron down — expand/collapse
     'chevron-down': [
       '<polyline points="6 9 12 15 18 9"/>',

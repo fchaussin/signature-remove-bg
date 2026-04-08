@@ -58,7 +58,19 @@ After uploading, a settings panel appears with instant preview:
 | Edge smoothing | Anti-aliasing width on signature edges (0–100) |
 | Format | PNG or WebP |
 
-Each change triggers automatic re-extraction (debounced at 300 ms). A progress bar animates at the bottom of the controls panel during extraction.
+Each change triggers automatic re-extraction (debounced at 300 ms) in live mode. A progress bar animates at the bottom of the controls panel during extraction.
+
+### Render mode
+
+Three render modes control when extraction runs:
+
+| Mode | Behavior |
+|---|---|
+| **Live** | Auto re-extract on every parameter change (debounced). Best for small images |
+| **Manual** | Extract only when clicking the **Render** button or pressing `Ctrl+Enter`. Recommended for large images or shared servers |
+| **Auto** (default) | Starts in live mode. Automatically switches to manual when the image exceeds a pixel threshold (`AUTO_MANUAL_PIXELS`) |
+
+A **Live** toggle in the controls bar lets the user switch between live and manual at any time. In manual mode, the extracted preview dims to indicate it's outdated, and the Render button pulses until clicked.
 
 ### Effects rack
 
@@ -293,6 +305,8 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_SMOOTHING` | `30` | Default edge smoothing (0–100) |
 | `DEFAULT_CONTRAST` | `0` | Default contrast boost (0–100) |
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
+| `RENDER_MODE` | `auto` | Render mode: `live`, `manual`, or `auto` (switches based on image size) |
+| `AUTO_MANUAL_PIXELS` | `4000000` | Pixel threshold for auto-switch to manual mode (4 Mpx default) |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
 | `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB (OWASP A04) |

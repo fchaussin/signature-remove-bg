@@ -120,6 +120,11 @@ MAX_CONCURRENT_OPS  = _int_env("MAX_CONCURRENT_OPS", 4)  # A04 — cap parallel 
 DEFAULT_MODE   = _choice_env("DEFAULT_MODE", "auto", VALID_MODES)
 DEFAULT_FORMAT = _choice_env("DEFAULT_FORMAT", "png", VALID_FORMATS)
 
+# -- Render mode (live / manual / auto) ----------------------------------------
+VALID_RENDER_MODES = {"live", "manual", "auto"}
+RENDER_MODE        = _choice_env("RENDER_MODE", "auto", VALID_RENDER_MODES)
+AUTO_MANUAL_PIXELS = _int_env("AUTO_MANUAL_PIXELS", 4_000_000)  # 4 Mpx — auto-switch threshold
+
 
 def _clamp(value: int, name: str) -> int:
     """Clamp *value* to the valid range for parameter *name*."""
@@ -545,6 +550,8 @@ async def config():
         "smoothing":      DEFAULT_SMOOTHING,
         "contrast":       DEFAULT_CONTRAST,
         "format":         DEFAULT_FORMAT,
+        "render_mode":    RENDER_MODE,
+        "auto_manual_pixels": AUTO_MANUAL_PIXELS,
     }, headers={
         "Cache-Control": "public, max-age=3600",      # A04 — immutable defaults, safe to cache
     })
