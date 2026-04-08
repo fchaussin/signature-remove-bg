@@ -7,75 +7,21 @@ const t = i18n.t.bind(i18n);
  *
  *  Table of contents
  *  -----------------
- *   0. i18n alias           — t() shorthand (i18n.js loaded before this file)
- *   1. Constants            — BG_STYLES, ZOOM_SIZE, MIN_CROP, validation sets
- *   2. (moved to ui.js)     — generic UI helpers
- *   3. DOM references       — single unified `dom` object
- *   4. Mutable state        — every `let` in one block, grouped by feature
- *   5. Core functions       — loadFile, checkResolution, extractSignature,
- *                             updateExtracted, getMimeType, downloadExtracted
- *   6. Presets              — save / load / delete, dirty state, API doc
- *   7. Render mode          — live / manual / auto
- *   8. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
- *   9. initZoom()           — zoom popup logic
- *  10. initCrop()           — crop overlay logic
- *  11. initBase64()         — base64 export popup
- *  12. Bootstrap            — upload events, paste, init calls, bg-pickers
+ *   Dependencies: constants.js, ui.js, utils.js, fx-slot.js, fx-rack.js
+ *
+ *   1. DOM references       — single unified `dom` object
+ *   2. Mutable state        — every `let` in one block, grouped by feature
+ *   3. Core functions       — loadFile, checkResolution, extractSignature,
+ *                             downloadExtracted
+ *   4. Presets              — save / load / delete, dirty state, API doc
+ *   5. Render mode          — live / manual / auto
+ *   6. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
+ *   7. initZoom()           — zoom popup logic
+ *   8. initCrop()           — crop overlay logic
+ *   9. initBase64()         — base64 export popup (formatting in utils.js)
+ *  10. Bootstrap            — upload events, paste, init calls, bg-pickers
+ *      (comparison slider in ui.js)
  * ===================================================================== */
-
-
-/* ===================================================================
- *  1. Constants
- * =================================================================== */
-
-const BG_STYLES = {
-  white:   '#fff',
-  checker: 'repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50%/16px 16px',
-  dark:    '#333',
-  blue:    '#dbeafe'
-};
-
-const ZOOM_SIZE = 400;
-const MIN_CROP  = 20;
-
-// Whitelists for input validation (OWASP A03/A08)
-const VALID_BG_KEYS    = new Set(Object.keys(BG_STYLES));
-const VALID_EDGES      = new Set(['top', 'bottom', 'left', 'right']);
-const VALID_FORMATS    = new Set(['png', 'webp']);
-const VALID_MODES      = new Set(['auto', 'dark', 'blue']);
-const ALLOWED_TYPES    = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
-const VALID_B64_FMTS   = new Set(['txt', 'uri', 'css_background_image', 'html_favicon', 'html_hyperlink', 'html_img', 'html_iframe', 'javascript_image', 'javascript_popup', 'json', 'xml']);
-const VALID_B64_MIMES  = new Set(['image/png', 'image/webp']);                       // A03 — whitelist mime types
-const B64_URI_RE       = /^data:image\/(png|webp);base64,[A-Za-z0-9+/\n]+=*$/;      // A08 — strict data URI pattern
-const MAX_CLIENT_BYTES = 50 * 1024 * 1024; // 50 MB — must match server MAX_UPLOAD_MB
-const XHR_TIMEOUT_MS   = 120_000;         // A05 — cap request duration (upload + processing)
-
-// A03 — whitelist error codes accepted from the server
-const VALID_ERROR_CODES = new Set([
-  'FILE_REQUIRED', 'INVALID_FILE', 'FILE_TOO_LARGE',
-  'IMAGE_TOO_LARGE', 'PROCESSING_FAILED', 'UNKNOWN', 'NETWORK',
-]);
-
-// A04 — whitelist MIME types accepted in extraction responses
-const VALID_RESPONSE_MIMES = new Set(['image/png', 'image/webp']);
-
-// Centralized parameter ranges — single source of truth (must match server PARAM_RANGES)
-const PARAM_RANGES = {
-  threshold:      { min: 50,  max: 250, off: 220 },
-  blue_tolerance: { min: 20,  max: 200, off: 80 },
-  smoothing:      { min: 0,   max: 100, off: 0 },
-  contrast:       { min: 0,   max: 100, off: 0 },
-};
-
-// Valid effect names (must match server VALID_EFFECTS)
-const VALID_EFFECTS = new Set(Object.keys(PARAM_RANGES));
-
-
-/* ===================================================================
- *  2. Helpers — see ui.js for generic UI utilities
- *     (debounce, toggleCollapse, dialog, safeObjectURL, fitScale,
- *      drawCheckerboard, initBgPicker)
- * =================================================================== */
 
 
 /* ===================================================================
@@ -212,7 +158,10 @@ dom.renderBtn        = dom.editor.querySelector('[data-action="render"]');
 
 // Core
 let currentFile       = null;
+let fileGeneration    = 0;     // incremented on each new file load — guards async callbacks
 let extractController = null;  // AbortController for in-flight extraction
+let base64Controller  = null;  // AbortController for in-flight base64 export
+let analyzeController = null;  // AbortController for in-flight analyze
 let naturalW          = 0;
 let naturalH          = 0;
 let lastExtractedBlob = null;
@@ -293,11 +242,6 @@ function buildExtractParams(extra) {
   });
 }
 
-/** Validate a server error code against the whitelist (A03). */
-function safeErrorCode(raw) {
-  return VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';
-}
-
 /** Sync blue_tolerance slot visibility based on the current mode. */
 function syncBlueSlotVisibility() {
   if (!fxRack) return;
@@ -308,72 +252,6 @@ function syncBlueSlotVisibility() {
   }
 }
 
-/** Validate an integer param from an external source (A08). */
-function isValidParam(name, value) {
-  const r = PARAM_RANGES[name];
-  return r && Number.isInteger(value) && value >= r.min && value <= r.max;
-}
-
-/**
- * POST FormData to `url` with upload progress and abort support.
- * Returns a Promise resolving to { ok, status, blob?, json? }.
- */
-function postWithProgress(url, formData, { signal, onProgress }) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-
-    xhr.upload.addEventListener('progress', e => {
-      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
-    });
-
-    // Signal upload complete when progress reaches 100%
-    xhr.upload.addEventListener('load', () => {
-      if (onProgress) onProgress(1);
-    });
-
-    xhr.addEventListener('load', async () => {
-      const ok = xhr.status >= 200 && xhr.status < 300;
-      const ct = xhr.getResponseHeader('Content-Type') || '';
-      if (ct.includes('application/json')) {
-        // responseType is 'blob', so parse JSON from the blob
-        const text = await xhr.response.text();
-        let json;
-        try { json = JSON.parse(text); } catch { json = {}; }
-        resolve({ ok, status: xhr.status, json });
-      } else {
-        resolve({ ok, status: xhr.status, blob: xhr.response });
-      }
-    });
-
-    xhr.addEventListener('error', () => reject(new Error('Network error')));
-    xhr.addEventListener('timeout', () => reject(new Error('Network error')));  // A05
-    xhr.addEventListener('abort', () => {
-      const err = new Error('Aborted');
-      err.name = 'AbortError';
-      reject(err);
-    });
-
-    // Wire AbortController → xhr.abort()
-    if (signal) {
-      if (signal.aborted) { xhr.abort(); return; }
-      signal.addEventListener('abort', () => xhr.abort(), { once: true });
-    }
-
-    xhr.responseType = 'blob';
-    xhr.timeout = XHR_TIMEOUT_MS;                                               // A05
-    xhr.send(formData);
-  });
-}
-
-/** Validate file client-side before upload (OWASP A04 — early rejection). */
-function validateFile(f) {
-  if (!f) return null;
-  if (!ALLOWED_TYPES.includes(f.type)) return 'INVALID_FILE';
-  if (f.size > MAX_CLIENT_BYTES) return 'FILE_TOO_LARGE';
-  return null;
-}
-
 function loadFile(f) {
   if (!f) return;
   const err = validateFile(f);
@@ -382,9 +260,19 @@ function loadFile(f) {
     dom.statusLabel.textContent = t('error.' + err);
     return;
   }
+
+  // Cancel any pending/in-flight work from the previous file
+  debouncedExtract.cancel();
+  if (extractController) extractController.abort();
+  if (base64Controller)  base64Controller.abort();
+  if (analyzeController) analyzeController.abort();
+
+  fileGeneration++;
   currentFile = f;
+  const gen = fileGeneration;
   dom.originalImg.src = safeObjectURL('original', f);
   dom.originalImg.onload = () => {
+    if (fileGeneration !== gen) return; // stale — new file was loaded
     naturalW = dom.originalImg.naturalWidth;
     naturalH = dom.originalImg.naturalHeight;
     checkResolution();
@@ -505,12 +393,22 @@ async function analyzeImage() {
   pendingPresets = null;
   dom.autoDetectBtn.classList.remove('ready');
 
+  // Abort any previous analyze request
+  if (analyzeController) analyzeController.abort();
+  analyzeController = new AbortController();
+
+  const gen = fileGeneration;
   const fd = new FormData();
   fd.append('file', currentFile);
 
   try {
-    const res = await fetch('/analyze', { method: 'POST', body: fd });
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      body: fd,
+      signal: analyzeController.signal,
+    });
     if (!res.ok) return;
+    if (fileGeneration !== gen) return; // stale — file changed during request
     const data = await res.json();
     // A03/A08 — validate returned presets against whitelists and ranges
     if (!data || typeof data !== 'object') return;
@@ -521,10 +419,12 @@ async function analyzeImage() {
       if (!isValidParam(step.effect, step.value)) return;
     }
 
+    if (fileGeneration !== gen) return; // re-check after JSON parse
     pendingPresets = data;
     dom.autoDetectBtn.classList.add('ready');
     document.dispatchEvent(new Event('analyze:ready'));
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') return;
     document.dispatchEvent(new Event('analyze:failed'));
   }
 }
@@ -994,10 +894,15 @@ function initCrop() {
     const outCtx = out.getContext('2d');
     outCtx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, sw, sh);
 
+    const genBeforeCrop = fileGeneration;
     out.toBlob(blob => {
+      if (fileGeneration !== genBeforeCrop) return; // file changed during toBlob
+      fileGeneration++; // treat cropped result as a new file
       currentFile = new File([blob], 'cropped.png', { type: blob.type });
+      const gen = fileGeneration;
       dom.originalImg.src = safeObjectURL('original', blob);
       dom.originalImg.onload = () => {
+        if (fileGeneration !== gen) return;
         naturalW = dom.originalImg.naturalWidth;
         naturalH = dom.originalImg.naturalHeight;
         checkResolution();
@@ -1018,46 +923,16 @@ function initCrop() {
 
 function initBase64() {
 
-  /**
-   * Format the raw data URI according to the selected output template.
-   * The dataUri is already validated (A08) before being stored.
-   */
-  function formatBase64(dataUri, fmt) {
-    if (!VALID_B64_FMTS.has(fmt)) return '';        // A03 — reject unknown format
-    // Parse parts from data URI: "data:image/png;base64,iVBOR..."
-    const semiIdx  = dataUri.indexOf(';');
-    const commaIdx = dataUri.indexOf(',');
-    if (semiIdx < 0 || commaIdx < 0) return '';     // A08 — malformed URI
-    const mime = dataUri.substring(5, semiIdx);      // "image/png"
-    if (!VALID_B64_MIMES.has(mime)) return '';        // A03 — reject unexpected mime
-    const raw  = dataUri.substring(commaIdx + 1);    // raw base64 string
-
-    switch (fmt) {
-      case 'txt':                  return raw;
-      case 'uri':                  return dataUri;
-      case 'css_background_image': return `background-image: url(${dataUri});`;
-      case 'html_favicon':         return `<link rel="icon" type="${mime}" href="${dataUri}" />`;
-      case 'html_hyperlink':       return `<a href="${dataUri}">Download</a>`;
-      case 'html_img':             return `<img src="${dataUri}" alt="signature" />`;
-      case 'html_iframe':          return `<iframe src="${dataUri}"></iframe>`;
-      case 'javascript_image':     return `const img = new Image();\nimg.src = "${dataUri}";`;
-      case 'javascript_popup':     return `window.open("${dataUri}");`;
-      case 'json':                 return JSON.stringify({ image: { mime, data: raw } }, null, 2);
-      case 'xml':                  return `<image mime="${mime}">\n  ${raw}\n</image>`;
-      default:                     return dataUri;
-    }
-  }
-
   function updateTextarea() {
     if (!base64DataUri) return;
-    dom.base64Textarea.value = formatBase64(base64DataUri, dom.base64Format.value);
+    dom.base64Textarea.value = formatBase64(base64DataUri, dom.base64Format.value, VALID_B64_FMTS, VALID_B64_MIMES);
   }
 
   async function openBase64() {
     if (!currentFile) return;
 
-    if (extractController) extractController.abort();
-    extractController = new AbortController();
+    if (base64Controller) base64Controller.abort();
+    base64Controller = new AbortController();
 
     setBusy(true);
     dom.statusLabel.textContent = t('status.uploading');
@@ -1069,7 +944,7 @@ function initBase64() {
 
     try {
       const res = await postWithProgress(`/extract?${params}`, fd, {
-        signal: extractController.signal,
+        signal: base64Controller.signal,
         onProgress(ratio) {
           setProgress(ratio * 100);
           if (ratio >= 1) {
@@ -1107,8 +982,10 @@ function initBase64() {
 
   // Copy to clipboard
   dom.base64CopyBtn.onclick = async () => {
+    const text = dom.base64Textarea.value; // capture before async gap
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(dom.base64Textarea.value);
+      await navigator.clipboard.writeText(text);
       const original = dom.base64CopyBtn.textContent;
       dom.base64CopyBtn.textContent = t('btn.copied');
       setTimeout(() => { dom.base64CopyBtn.textContent = original; }, 1500);
@@ -1132,65 +1009,6 @@ function initBase64() {
   registerDialog(dom.base64Overlay, closeBase64);
 }
 
-
-/* ===================================================================
- *  11. Comparison slider — before/after image overlay
- * =================================================================== */
-
-function initCompareSlider() {
-  let dragging = false;
-  const toggle = dom.extractedPanel.querySelector('[data-action="toggle-compare"]');
-
-  function isActive() {
-    return !dom.compareSlider.classList.contains('off');
-  }
-
-  function setPosition(pct) {
-    pct = Math.max(0, Math.min(100, pct));
-    dom.compareBefore.style.width = pct + '%';
-    dom.compareHandle.style.left  = pct + '%';
-    // The before image must span the full slider width so it aligns with the after image
-    if (pct > 0) {
-      dom.compareBeforeImg.style.width = dom.compareSlider.offsetWidth + 'px';
-    }
-  }
-
-  function posFromEvent(e) {
-    const rect = dom.compareSlider.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    return ((clientX - rect.left) / rect.width) * 100;
-  }
-
-  // Toggle on/off
-  toggle.onchange = () => {
-    dom.compareSlider.classList.toggle('off', !toggle.checked);
-  };
-
-  dom.compareSlider.addEventListener('pointerdown', e => {
-    if (!isActive()) return;
-    dragging = true;
-    dom.compareSlider.setPointerCapture(e.pointerId);
-    setPosition(posFromEvent(e));
-  });
-
-  dom.compareSlider.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    setPosition(posFromEvent(e));
-  });
-
-  dom.compareSlider.addEventListener('pointerup', () => { dragging = false; });
-  dom.compareSlider.addEventListener('pointercancel', () => { dragging = false; });
-
-  // Keyboard support on the handle
-  dom.compareHandle.addEventListener('keydown', e => {
-    const step = 2;
-    if (e.key === 'ArrowLeft')  setPosition(parseFloat(dom.compareHandle.style.left) - step);
-    else if (e.key === 'ArrowRight') setPosition(parseFloat(dom.compareHandle.style.left) + step);
-  });
-
-  // Initialize fully showing the extracted image
-  setPosition(0);
-}
 
 /** Sync the comparison "before" image with the current original source. */
 function syncCompareBeforeImg() {
@@ -1260,6 +1078,7 @@ syncPresetUI();
 dom.presetSelect.onchange = () => {
   const name = dom.presetSelect.value;
   if (name === '__dirty__') return; // ignore selecting the dirty placeholder
+  debouncedExtract.cancel(); // cancel any pending debounced extraction
   if (!name) {
     // "Default" selected — reload default preset
     if (defaultPresetQs) loadPreset(defaultPresetQs);
@@ -1356,7 +1175,13 @@ initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted', BG_STYLES, VALID_
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
 
 // Comparison slider
-initCompareSlider();
+initCompareSlider({
+  slider:    dom.compareSlider,
+  before:    dom.compareBefore,
+  beforeImg: dom.compareBeforeImg,
+  handle:    dom.compareHandle,
+  toggle:    dom.extractedPanel.querySelector('[data-action="toggle-compare"]'),
+});
 
 // Feature overlays
 initZoom();

@@ -1,37 +1,18 @@
 'use strict';
 
 /**
- * ui.js — Reusable UI helpers (no business logic).
+ * ui.js — Reusable UI components (no business logic, no state).
  *
  * Table of contents:
- *  1. debounce        — cancel-aware debounce
- *  2. toggleCollapse  — animated collapse/expand via .collapsed class
- *  3. Dialog helpers  — registerDialog, openDialog, closeDialog
- *  4. safeObjectURL   — blob URL with auto-revoke
- *  5. fitScale        — scale factor to fit dimensions
- *  6. drawCheckerboard — canvas checker pattern
- *  7. initBgPicker    — background color picker with sync groups
+ *  1. toggleCollapse    — animated collapse/expand via .collapsed class
+ *  2. Dialog helpers    — registerDialog, openDialog, closeDialog
+ *  3. initBgPicker      — background color picker with sync groups
+ *  4. initCompareSlider — before/after comparison slider
  */
 
 
 /* ===================================================================
- *  1. Debounce
- * =================================================================== */
-
-/** Debounce helper returning a cancel-aware wrapper. */
-function debounce(fn, ms) {
-  let timer = null;
-  const wrapped = (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-  wrapped.cancel = () => clearTimeout(timer);
-  return wrapped;
-}
-
-
-/* ===================================================================
- *  2. Collapse / Expand
+ *  1. Collapse / Expand
  * =================================================================== */
 
 /**
@@ -47,7 +28,7 @@ function toggleCollapse(target, triggerEl, activeClass) {
 
 
 /* ===================================================================
- *  3. Dialog helpers — native <dialog> with showModal / close
+ *  2. Dialog helpers — native <dialog> with showModal / close
  * =================================================================== */
 
 /**
@@ -72,50 +53,7 @@ function closeDialog(dialog) {
 
 
 /* ===================================================================
- *  4. Object URL management
- * =================================================================== */
-
-/**
- * Create a blob URL and revoke the previous one stored under the same key.
- * Prevents memory leaks from accumulated object URLs (OWASP A04).
- */
-const _objectURLs = Object.create(null);
-function safeObjectURL(key, blob) {
-  if (_objectURLs[key]) URL.revokeObjectURL(_objectURLs[key]);
-  const url = URL.createObjectURL(blob);
-  _objectURLs[key] = url;
-  return url;
-}
-
-
-/* ===================================================================
- *  5. Scaling
- * =================================================================== */
-
-/** Compute a scale factor to fit `imgW x imgH` within `maxW x maxH` (never upscale). */
-function fitScale(imgW, imgH, maxW, maxH) {
-  return Math.min(1, maxW / imgW, maxH / imgH);
-}
-
-
-/* ===================================================================
- *  6. Canvas
- * =================================================================== */
-
-/** Draw a checkerboard pattern on a canvas context. */
-function drawCheckerboard(ctx, w, h) {
-  const size = 8;
-  for (let y = 0; y < h; y += size) {
-    for (let x = 0; x < w; x += size) {
-      ctx.fillStyle = ((x / size + y / size) % 2 === 0) ? '#ddd' : '#fff';
-      ctx.fillRect(x, y, size, size);
-    }
-  }
-}
-
-
-/* ===================================================================
- *  7. Background picker
+ *  3. Background picker
  * =================================================================== */
 
 /**
@@ -153,4 +91,67 @@ function initBgPicker(container, target, syncGroup, styles, validKeys) {
       peer.target.style.background = styles[bg];
     }
   });
+}
+
+
+/* ===================================================================
+ *  4. Compare slider — before/after image overlay
+ * =================================================================== */
+
+/**
+ * Initialize a before/after comparison slider.
+ * @param {object} els — { slider, before, beforeImg, handle, toggle }
+ */
+function initCompareSlider(els) {
+  let dragging = false;
+
+  function isActive() {
+    return !els.slider.classList.contains('off');
+  }
+
+  function setPosition(pct) {
+    pct = Math.max(0, Math.min(100, pct));
+    els.before.style.width = pct + '%';
+    els.handle.style.left  = pct + '%';
+    // The before image must span the full slider width so it aligns with the after image
+    if (pct > 0) {
+      els.beforeImg.style.width = els.slider.offsetWidth + 'px';
+    }
+  }
+
+  function posFromEvent(e) {
+    const rect = els.slider.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return ((clientX - rect.left) / rect.width) * 100;
+  }
+
+  // Toggle on/off
+  els.toggle.onchange = () => {
+    els.slider.classList.toggle('off', !els.toggle.checked);
+  };
+
+  els.slider.addEventListener('pointerdown', e => {
+    if (!isActive()) return;
+    dragging = true;
+    els.slider.setPointerCapture(e.pointerId);
+    setPosition(posFromEvent(e));
+  });
+
+  els.slider.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    setPosition(posFromEvent(e));
+  });
+
+  els.slider.addEventListener('pointerup', () => { dragging = false; });
+  els.slider.addEventListener('pointercancel', () => { dragging = false; });
+
+  // Keyboard support on the handle
+  els.handle.addEventListener('keydown', e => {
+    const step = 2;
+    if (e.key === 'ArrowLeft')  setPosition(parseFloat(els.handle.style.left) - step);
+    else if (e.key === 'ArrowRight') setPosition(parseFloat(els.handle.style.left) + step);
+  });
+
+  // Initialize fully showing the extracted image
+  setPosition(0);
 }
