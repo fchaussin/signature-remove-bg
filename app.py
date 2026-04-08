@@ -41,7 +41,6 @@ from PIL import Image
 from secure import Secure
 from secure.headers import (
     ContentSecurityPolicy,
-    PermissionsPolicy,
     StrictTransportSecurity,
     XContentTypeOptions,
     XFrameOptions,
@@ -58,7 +57,6 @@ MODE_DARK = "dark"
 MODE_BLUE = "blue"
 VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
-VALID_OUTPUTS = {"binary", "base64"}
 VALID_EFFECTS = {"threshold", "blue_tolerance", "contrast", "smoothing"}
 MAX_PIPELINE_STEPS = 7
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
@@ -176,7 +174,7 @@ def _safe_log(value: str | None, max_len: int = 100) -> str:
 
 app = FastAPI(
     title="Signature Remove Background",
-    version="0.2.0",
+    version="0.3.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -367,31 +365,20 @@ def extract_signature(
 #  5c. Preset detection (SRP — one function per parameter)
 # ---------------------------------------------------------------------------
 
-def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
-    """
-    Two-pass threshold detection.
-    Returns (refined, coarse) — refined for extraction, coarse for analysis.
-
-    1. Otsu on pixels < 220 to separate foreground from background (coarse)
-    2. Otsu again on pixels below coarse to separate ink from gray paper (refined)
-    """
-    # Pass 1 — coarse Otsu on pixels < 220 (exclude pure white)
-    dark_lum = lum[lum < 220]
-    if dark_lum.size == 0:
-        return DEFAULT_THRESHOLD, DEFAULT_THRESHOLD
-
-    hist, _ = np.histogram(dark_lum.ravel(), bins=220, range=(0, 220))
+def _otsu_once(values: np.ndarray, n_bins: int, fallback: int) -> int:
+    """Run Otsu's method on *values* and return the optimal threshold."""
+    hist, _ = np.histogram(values.ravel(), bins=n_bins, range=(0, n_bins))
     total = hist.sum()
     if total == 0:
-        return DEFAULT_THRESHOLD, DEFAULT_THRESHOLD
+        return fallback
 
-    sum_all = np.dot(np.arange(220), hist)
+    sum_all = np.dot(np.arange(n_bins), hist)
     sum_bg = 0.0
     w_bg = 0
-    coarse = DEFAULT_THRESHOLD
+    best_t = fallback
     best_var = -1.0
 
-    for t in range(220):
+    for t in range(n_bins):
         w_bg += hist[t]
         if w_bg == 0:
             continue
@@ -404,36 +391,28 @@ def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
         var = w_bg * w_fg * (mean_bg - mean_fg) ** 2
         if var > best_var:
             best_var = var
-            coarse = t
+            best_t = t
+    return best_t
 
-    # Pass 2 — run Otsu again on pixels below the coarse threshold
-    # This separates actual ink from the gray "paper" zone
+
+def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
+    """
+    Two-pass threshold detection.
+    Returns (refined, coarse) — refined for extraction, coarse for analysis.
+    """
+    # Pass 1 — coarse: separate foreground from background (pixels < 220)
+    dark_lum = lum[lum < 220]
+    if dark_lum.size == 0:
+        return DEFAULT_THRESHOLD, DEFAULT_THRESHOLD
+
+    coarse = _otsu_once(dark_lum, 220, DEFAULT_THRESHOLD)
+
+    # Pass 2 — refined: separate ink from gray paper (pixels below coarse)
     ink = lum[lum < coarse]
     if ink.size < MIN_INK_PIXELS:
         return _clamp(coarse, "threshold"), _clamp(coarse, "threshold")
 
-    hist2, _ = np.histogram(ink.ravel(), bins=coarse, range=(0, coarse))
-    total2 = hist2.sum()
-    sum_all2 = np.dot(np.arange(coarse), hist2)
-    sum_bg2 = 0.0
-    w_bg2 = 0
-    refined = coarse
-    best_var2 = -1.0
-
-    for t in range(coarse):
-        w_bg2 += hist2[t]
-        if w_bg2 == 0:
-            continue
-        w_fg2 = total2 - w_bg2
-        if w_fg2 == 0:
-            break
-        sum_bg2 += t * hist2[t]
-        mean_bg2 = sum_bg2 / w_bg2
-        mean_fg2 = (sum_all2 - sum_bg2) / w_fg2
-        v = w_bg2 * w_fg2 * (mean_bg2 - mean_fg2) ** 2
-        if v > best_var2:
-            best_var2 = v
-            refined = t
+    refined = _otsu_once(ink, coarse, coarse)
     return _clamp(refined, "threshold"), _clamp(coarse, "threshold")
 
 
@@ -553,12 +532,7 @@ def detect_presets(image: Image.Image) -> dict:
 # ---------------------------------------------------------------------------
 
 async def read_upload(file: UploadFile, safe_name: str) -> bytes | None:
-    """
-    Read an uploaded file with streaming size check.
-
-    Returns the file contents on success, or ``None`` after sending
-    an error response to the caller (signalled by raising).
-    """
+    """Read an uploaded file with streaming size check. Returns None if too large."""
     chunks: list[bytes] = []
     total = 0
 
@@ -714,16 +688,19 @@ async def extract(
 
     parsed_steps = _parse_steps(steps)
 
-    async with _processing_semaphore:                    # A04 — limit concurrent CPU work
-        try:
-            result = extract_signature(image, mode=mode, steps=parsed_steps)
-        except Exception:
-            logger.exception("Extraction failed for %s", safe_name)
-            return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
-
+    def _extract_and_encode():
+        result = extract_signature(image, mode=mode, steps=parsed_steps)
         buf = io.BytesIO()
         result.save(buf, format=format.upper(), optimize=True)
         buf.seek(0)
+        return buf
+
+    async with _processing_semaphore:
+        try:
+            buf = await asyncio.to_thread(_extract_and_encode)
+        except Exception:
+            logger.exception("Extraction failed for %s", safe_name)
+            return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
 
     media_type = "image/png" if format == "png" else "image/webp"
 
@@ -755,7 +732,7 @@ async def analyze(file: UploadFile = File(...)):
 
     async with _processing_semaphore:                    # A04 — limit concurrent CPU work
         try:
-            presets = detect_presets(image)
+            presets = await asyncio.to_thread(detect_presets, image)
         except Exception:
             logger.exception("Analysis failed for %s", safe_name)
             return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
