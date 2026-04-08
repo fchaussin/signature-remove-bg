@@ -944,7 +944,9 @@ input[type=range] {
   display: flex;
   align-items: center;
   gap: .5rem;
-  margin-bottom: .5rem;
+  padding: .5em;
+  background: rgb(0 0 0 / 30%);
+  border-radius: .25em;
 }
 
 .rack-count {
@@ -977,7 +979,7 @@ input[type=range] {
   &:hover { background: var(--color-primary); color: #fff; }
 }
 
-.rack.collapsed .btn-rack-collapse {
+.btn-rack-collapse.collapsed {
   transform: rotate(-90deg);
 }
 

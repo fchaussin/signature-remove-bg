@@ -9,18 +9,18 @@ const t = i18n.t.bind(i18n);
  *  -----------------
  *   0. i18n alias           — t() shorthand (i18n.js loaded before this file)
  *   1. Constants            — BG_STYLES, ZOOM_SIZE, MIN_CROP, validation sets
- *   2. Helpers              — drawCheckerboard, fitScale, debounce, initBgPicker,
- *                             safeObjectURL, revokeObjectURL
- *   3. Overlay manager      — register / open / close overlays, Escape key
- *   4. DOM references       — single unified `dom` object
- *   5. Mutable state        — every `let` in one block, grouped by feature
- *   6. Core functions       — loadFile, checkResolution, extractSignature,
+ *   2. (moved to ui.js)     — generic UI helpers
+ *   3. DOM references       — single unified `dom` object
+ *   4. Mutable state        — every `let` in one block, grouped by feature
+ *   5. Core functions       — loadFile, checkResolution, extractSignature,
  *                             updateExtracted, getMimeType, downloadExtracted
- *   7. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
- *   8. initZoom()           — zoom popup logic
- *   9. initCrop()           — crop overlay logic
- *  10. initBase64()         — base64 export popup
- *  11. Bootstrap            — upload events, paste, init calls, bg-pickers
+ *   6. Presets              — save / load / delete, dirty state, API doc
+ *   7. Render mode          — live / manual / auto
+ *   8. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
+ *   9. initZoom()           — zoom popup logic
+ *  10. initCrop()           — crop overlay logic
+ *  11. initBase64()         — base64 export popup
+ *  12. Bootstrap            — upload events, paste, init calls, bg-pickers
  * ===================================================================== */
 
 
@@ -72,105 +72,10 @@ const VALID_EFFECTS = new Set(Object.keys(PARAM_RANGES));
 
 
 /* ===================================================================
- *  2. Helpers
+ *  2. Helpers — see ui.js for generic UI utilities
+ *     (debounce, toggleCollapse, dialog, safeObjectURL, fitScale,
+ *      drawCheckerboard, initBgPicker)
  * =================================================================== */
-
-/**
- * Attach a bg-picker inside `container`, applying styles to `target`.
- * Pickers registered in the same sync group stay in sync.
- */
-const _bgPickerGroups = {};
-
-function initBgPicker(container, target, syncGroup) {
-  const picker = container.querySelector('.bg-picker') || container.querySelector('.zoom-bg-picker');
-  if (!picker) return;
-
-  // Register in sync group
-  if (syncGroup) {
-    if (!_bgPickerGroups[syncGroup]) _bgPickerGroups[syncGroup] = [];
-    _bgPickerGroups[syncGroup].push({ picker, target });
-  }
-
-  picker.addEventListener('click', e => {
-    const swatch = e.target.closest('.bg-swatch');
-    if (!swatch) return;
-    const bg = swatch.dataset.bg;
-    if (!VALID_BG_KEYS.has(bg)) return; // reject unknown keys (OWASP A03)
-    e.stopPropagation();
-
-    // Apply to all pickers in the same sync group
-    const peers = syncGroup ? _bgPickerGroups[syncGroup] : [{ picker, target }];
-    for (const peer of peers) {
-      peer.picker.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
-      peer.picker.querySelector(`[data-bg="${bg}"]`).classList.add('active');
-      peer.target.style.background = BG_STYLES[bg];
-    }
-  });
-}
-
-/** Draw a checkerboard pattern on a canvas context. */
-function drawCheckerboard(ctx, w, h) {
-  const size = 8;
-  for (let y = 0; y < h; y += size) {
-    for (let x = 0; x < w; x += size) {
-      ctx.fillStyle = ((x / size + y / size) % 2 === 0) ? '#ddd' : '#fff';
-      ctx.fillRect(x, y, size, size);
-    }
-  }
-}
-
-/** Compute a scale factor to fit `imgW x imgH` within `maxW x maxH` (never upscale). */
-function fitScale(imgW, imgH, maxW, maxH) {
-  return Math.min(1, maxW / imgW, maxH / imgH);
-}
-
-/** Debounce helper returning a cancel-aware wrapper. */
-function debounce(fn, ms) {
-  let timer = null;
-  const wrapped = (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-  wrapped.cancel = () => clearTimeout(timer);
-  return wrapped;
-}
-
-/**
- * Create a blob URL and revoke the previous one stored under the same key.
- * Prevents memory leaks from accumulated object URLs (OWASP A04).
- */
-const _objectURLs = Object.create(null);
-function safeObjectURL(key, blob) {
-  if (_objectURLs[key]) URL.revokeObjectURL(_objectURLs[key]);
-  const url = URL.createObjectURL(blob);
-  _objectURLs[key] = url;
-  return url;
-}
-
-
-/* ===================================================================
- *  3. Dialog helpers — native <dialog> with showModal / close
- * =================================================================== */
-
-/**
- * Register a <dialog> with an optional onClose callback.
- * The native `cancel` event (Escape key) is handled automatically.
- */
-function registerDialog(dialog, onClose) {
-  dialog.addEventListener('cancel', e => {
-    e.preventDefault(); // prevent default close to run our callback
-    if (onClose) onClose();
-    else dialog.close();
-  });
-}
-
-function openDialog(dialog) {
-  if (!dialog.open) dialog.showModal();
-}
-
-function closeDialog(dialog) {
-  if (dialog.open) dialog.close();
-}
 
 
 /* ===================================================================
@@ -957,7 +862,7 @@ function initZoom() {
     if (dom.extractedImg.src) openZoom(dom.extractedImg.src);
   };
 
-  initBgPicker(dom.zoomOverlay, dom.zoomViewport, 'extracted');
+  initBgPicker(dom.zoomOverlay, dom.zoomViewport, 'extracted', BG_STYLES, VALID_BG_KEYS);
   registerDialog(dom.zoomOverlay);
 }
 
@@ -1392,16 +1297,11 @@ registerDialog(dom.deletePresetOverlay);
 
 // API doc — toggle, expand, copy
 dom.apiToggleBtn.onclick = () => {
-  const wasCollapsed = dom.apiDoc.classList.contains('collapsed');
-  dom.apiDoc.classList.toggle('collapsed');
-  dom.apiToggleBtn.classList.toggle('active', wasCollapsed);
-  if (wasCollapsed) syncApiDoc();
+  if (toggleCollapse(dom.apiDoc, dom.apiToggleBtn, 'active')) syncApiDoc();
 };
 
 dom.apiExpandBtn.onclick = () => {
-  const wasCollapsed = dom.apiDetails.classList.contains('collapsed');
-  dom.apiDetails.classList.toggle('collapsed');
-  dom.apiExpandBtn.classList.toggle('expanded', wasCollapsed);
+  toggleCollapse(dom.apiDetails, dom.apiExpandBtn, 'expanded');
 };
 
 dom.apiCopyBtn.onclick = () => {
@@ -1426,7 +1326,7 @@ document.addEventListener('keydown', e => {
 });
 
 // Extracted panel: bg picker & download
-initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
+initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted', BG_STYLES, VALID_BG_KEYS);
 dom.extractedPanel.querySelector('[data-action="download"]').onclick = downloadExtracted;
 
 // Comparison slider

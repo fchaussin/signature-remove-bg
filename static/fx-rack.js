@@ -54,7 +54,7 @@ class FxRack {
     });
 
     this._collapseBtn.addEventListener('click', () => {
-      this.el.classList.toggle('collapsed');
+      toggleCollapse(this.el, this._collapseBtn, 'collapsed');
     });
 
     this._initDragAndDrop();
