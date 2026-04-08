@@ -124,6 +124,7 @@ DEFAULT_FORMAT = _choice_env("DEFAULT_FORMAT", "png", VALID_FORMATS)
 VALID_RENDER_MODES = {"live", "manual", "auto"}
 RENDER_MODE        = _choice_env("RENDER_MODE", "auto", VALID_RENDER_MODES)
 AUTO_MANUAL_PIXELS = _int_env("AUTO_MANUAL_PIXELS", 4_000_000)  # 4 Mpx — auto-switch threshold
+ANALYZE_ON_UPLOAD  = os.environ.get("ANALYZE_ON_UPLOAD", "true").lower() in ("true", "1", "yes")
 
 
 def _clamp(value: int, name: str) -> int:
@@ -628,6 +629,7 @@ async def config():
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,
         "auto_manual_pixels": AUTO_MANUAL_PIXELS,
+        "analyze_on_upload": ANALYZE_ON_UPLOAD,
         "max_steps":      MAX_PIPELINE_STEPS,
         "steps": [
             {"effect": "threshold",      "value": DEFAULT_THRESHOLD},

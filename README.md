@@ -307,6 +307,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `RENDER_MODE` | `auto` | Render mode: `live`, `manual`, or `auto` (switches based on image size) |
 | `AUTO_MANUAL_PIXELS` | `4000000` | Pixel threshold for auto-switch to manual mode (4 Mpx default) |
+| `ANALYZE_ON_UPLOAD` | `true` | Call `/analyze` on each upload to suggest optimal presets via the Auto button |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
 | `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB (OWASP A04) |

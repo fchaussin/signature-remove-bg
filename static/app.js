@@ -249,6 +249,7 @@ let renderModeSetting = 'auto';  // server setting: 'auto', 'live', 'manual'
 let autoManualPixels  = 4_000_000;
 let livePreview       = true;    // current client-side state
 let renderStale       = false;   // true when settings changed but not rendered (manual mode)
+let analyzeOnUpload   = true;    // server setting: call /analyze on each upload
 
 // Rack — initialized in Bootstrap
 let fxRack = null;
@@ -392,8 +393,32 @@ function loadFile(f) {
   };
   dom.editor.classList.add('visible');
   clearRenderStale();
-  extractSignature();
-  analyzeImage();  // parallel — suggests optimal presets via ✦ Auto button
+
+  if (analyzeOnUpload) {
+    // Analyze first → apply presets → then extract with detected values
+    // If analysis fails → extract with current defaults
+    const onResult = () => {
+      document.removeEventListener('analyze:ready', onResult);
+      document.removeEventListener('analyze:failed', onFail);
+      // Apply detected presets then force extraction (bypass render mode)
+      if (pendingPresets && fxRack) {
+        dom.param('mode').value = pendingPresets.mode;
+        loadStepsIntoRack(pendingPresets.steps);
+        syncBlueSlotVisibility();
+      }
+      extractSignature();
+    };
+    const onFail = () => {
+      document.removeEventListener('analyze:ready', onResult);
+      document.removeEventListener('analyze:failed', onFail);
+      extractSignature();   // fallback with current defaults
+    };
+    document.addEventListener('analyze:ready', onResult);
+    document.addEventListener('analyze:failed', onFail);
+    analyzeImage();
+  } else {
+    extractSignature();
+  }
 }
 
 function checkResolution() {
@@ -498,8 +523,9 @@ async function analyzeImage() {
 
     pendingPresets = data;
     dom.autoDetectBtn.classList.add('ready');
+    document.dispatchEvent(new Event('analyze:ready'));
   } catch {
-    // Analysis is optional — silently ignore failures
+    document.dispatchEvent(new Event('analyze:failed'));
   }
 }
 
@@ -1388,6 +1414,9 @@ fetch('/config')
     }
     if (typeof cfg.auto_manual_pixels === 'number' && cfg.auto_manual_pixels > 0) {
       autoManualPixels = cfg.auto_manual_pixels;
+    }
+    if (typeof cfg.analyze_on_upload === 'boolean') {
+      analyzeOnUpload = cfg.analyze_on_upload;
     }
 
     // Capture server defaults as the "Default" preset
