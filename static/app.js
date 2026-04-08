@@ -1337,12 +1337,27 @@ initZoom();
 initCrop();
 initBase64();
 
-// i18n — detect browser language and apply translations
 // Inject SVG icons into all [data-icon] placeholders
 Icon.inject();
 
+// --- Async init gate -------------------------------------------------------
+// Both i18n and /config are async. Some setup (rack labels) needs both.
+// We track completion with flags and run finalize() when both are done.
+let _i18nReady  = false;
+let _configDone = false;
+
+function _onBothReady() {
+  if (!_i18nReady || !_configDone) return;
+  // Rack labels need translated strings + slots from /config
+  if (fxRack) fxRack.refreshLabels();
+}
+
+// i18n — detect browser language and apply translations
+document.addEventListener('i18n:ready', () => {
+  _i18nReady = true;
+  _onBothReady();
+});
 i18n.init();
-if (fxRack) fxRack.refreshLabels();
 
 // Load server defaults and apply to controls (OWASP A08 — validate response shape)
 fetch('/config')
@@ -1370,7 +1385,6 @@ fetch('/config')
       renderModeSetting = cfg.render_mode;
       if (renderModeSetting === 'manual') setLivePreview(false);
       else if (renderModeSetting === 'live') setLivePreview(true);
-      // 'auto' stays as default (live) until image loaded
     }
     if (typeof cfg.auto_manual_pixels === 'number' && cfg.auto_manual_pixels > 0) {
       autoManualPixels = cfg.auto_manual_pixels;
@@ -1380,7 +1394,9 @@ fetch('/config')
     defaultPresetQs = serializePreset();
     presetSnapshot = defaultPresetQs;
     syncPresetUI();
-
-    // URL sync removed — presets now use JSON format, not query strings
   })
-  .catch(() => {});
+  .catch(() => {})
+  .finally(() => {
+    _configDone = true;
+    _onBothReady();
+  });
