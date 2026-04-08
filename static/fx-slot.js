@@ -4,90 +4,117 @@
  * FxSlot — Single effect slot in the rack.
  *
  * Responsibilities (SRP):
- *  - Own its DOM element, toggle, slider, display label
+ *  - Build its own DOM from effect metadata
+ *  - Own toggle, slider, display label, remove button
  *  - Expose its current value (respecting toggle state)
- *  - Notify the rack on value change via a callback
- *
- * The slot reads its configuration from the DOM:
- *  - data-effect      → effect name (e.g. "threshold")
- *  - [data-param]     → range input
- *  - [data-display]   → value display label
- *  - .rack-toggle     → on/off checkbox
- *
- * Subclass to add custom controls beyond a single slider.
+ *  - Notify the rack on value change or remove request via callbacks
  */
 class FxSlot {
 
   /**
-   * @param {HTMLElement} el        — the .rack-slot element
-   * @param {object}      opts
-   * @param {number}      opts.offValue  — value sent when toggled off
-   * @param {function}    opts.onChange   — called on any value/toggle change
+   * @param {string}   effect    — effect name (e.g. "threshold")
+   * @param {string}   id        — unique instance ID (e.g. "threshold_0")
+   * @param {object}   meta      — { icon, label, min, max, off, defaultOn }
+   * @param {object}   opts
+   * @param {function} opts.onChange  — called on any value/toggle change
+   * @param {function} opts.onRemove — called when user clicks remove
    */
-  constructor(el, { offValue = 0, onChange = () => {} } = {}) {
-    this.el       = el;
-    this.name     = el.dataset.effect;
-    this._offValue = offValue;
-    this._onChange = onChange;
+  constructor(effect, id, meta, { onChange = () => {}, onRemove = () => {} } = {}) {
+    this.effect    = effect;
+    this.id        = id;
+    this._meta     = meta;
+    this._offValue = meta.off;
+    this._onChange  = onChange;
+    this._onRemove = onRemove;
+
+    this.el = this._buildDOM(meta);
 
     // DOM children
-    this._checkbox = el.querySelector('.rack-toggle input');
-    this._slider   = el.querySelector('[data-param]');
-    this._display  = el.querySelector('[data-display]');
+    this._checkbox = this.el.querySelector('.rack-toggle input');
+    this._slider   = this.el.querySelector('[data-param]');
+    this._display  = this.el.querySelector('[data-display]');
+    this._label    = this.el.querySelector('.rack-label');
+    this._removeBtn = this.el.querySelector('[data-action="remove-slot"]');
 
     // Initial state
     this._enabled = this._checkbox ? this._checkbox.checked : true;
     this._applyDisabledState();
 
     // Bind events
-    this._bindToggle();
-    this._bindSlider();
+    if (this._checkbox) this._checkbox.addEventListener('change', () => this._onToggleChange());
+    if (this._slider) this._slider.addEventListener('input', () => this._onSliderInput());
+    if (this._removeBtn) this._removeBtn.addEventListener('click', () => this._onRemove(this));
   }
 
   /* -- Public API -------------------------------------------------------- */
 
+  /** Effect name (e.g. "threshold") — may appear on multiple slots. */
+  get name() { return this.effect; }
+
   /** Current effective value (offValue when disabled). */
   get value() {
     if (!this._enabled) return this._offValue;
-    return this._slider ? this._slider.value : this._offValue;
+    return this._slider ? Number(this._slider.value) : this._offValue;
   }
 
   /** Whether the effect is enabled. */
-  get enabled() {
-    return this._enabled;
-  }
+  get enabled() { return this._enabled; }
 
-  /** Programmatically set the slider value + display (e.g. from /config). */
+  /** Programmatically set the slider value + display. */
   setValue(v) {
     if (this._slider) this._slider.value = v;
     if (this._display) this._display.textContent = v;
   }
 
-  /* -- Protected (override in subclasses) -------------------------------- */
+  /** Programmatically set the enabled/disabled toggle state. */
+  setEnabled(on) {
+    if (this._checkbox) {
+      this._checkbox.checked = on;
+      this._enabled = on;
+      this._applyDisabledState();
+    }
+  }
 
-  /** Called when the slider moves. Override for custom behaviour. */
+  /** Update the visible label (e.g. add "#2" for duplicates). */
+  setLabel(text) {
+    if (this._label) this._label.textContent = text;
+  }
+
+  /** Enable or disable the remove button. */
+  setRemovable(can) {
+    if (this._removeBtn) this._removeBtn.disabled = !can;
+  }
+
+  /* -- Private ----------------------------------------------------------- */
+
+  _buildDOM(meta) {
+    const el = document.createElement('div');
+    el.className = 'rack-slot';
+    el.dataset.effect = this.effect;
+    el.dataset.slotId = this.id;
+    el.setAttribute('role', 'listitem');
+    el.innerHTML = `
+      <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
+      <span class="rack-icon" data-icon="${meta.icon}" data-icon-size="16"></span>
+      <label class="rack-toggle"><input type="checkbox"${meta.defaultOn ? ' checked' : ''}><span class="rack-toggle-mark"></span></label>
+      <div class="rack-body">
+        <label><span class="rack-label">${meta.label}</span> <span data-display="${this.effect}">${meta.off}</span></label>
+        <input type="range" data-param="${this.effect}" min="${meta.min}" max="${meta.max}" value="${meta.off}">
+      </div>
+      <button class="btn-remove-slot" data-action="remove-slot" aria-label="Remove" data-icon="close" data-icon-size="12"></button>
+    `;
+    return el;
+  }
+
   _onSliderInput() {
     if (this._display) this._display.textContent = this._slider.value;
     this._onChange(this);
   }
 
-  /** Called when the toggle changes. Override for custom behaviour. */
   _onToggleChange() {
     this._enabled = this._checkbox.checked;
     this._applyDisabledState();
     this._onChange(this);
-  }
-
-  /* -- Private ----------------------------------------------------------- */
-
-  _bindToggle() {
-    if (!this._checkbox) return;
-    this._checkbox.addEventListener('change', () => this._onToggleChange());
-  }
-
-  _bindSlider() {
-    if (!this._slider) return;
-    this._slider.addEventListener('input', () => this._onSliderInput());
   }
 
   _applyDisabledState() {

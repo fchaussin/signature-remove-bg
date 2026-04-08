@@ -67,10 +67,8 @@ const PARAM_RANGES = {
   contrast:       { min: 0,   max: 100, off: 0 },
 };
 
-// Effects rack defaults (consumed by FxRack / FxSlot)
-const FX_DEFAULTS = Object.fromEntries(
-  Object.entries(PARAM_RANGES).map(([k, v]) => [k, { off: v.off }])
-);
+// Valid effect names (must match server VALID_EFFECTS)
+const VALID_EFFECTS = new Set(Object.keys(PARAM_RANGES));
 
 
 /* ===================================================================
@@ -380,15 +378,11 @@ function setIndeterminate() {
 
 /** Build extraction URLSearchParams from current controls. Optional extra params merged in. */
 function buildExtractParams(extra) {
-  const fx = fxRack ? fxRack.getValues() : {};
+  const steps = fxRack ? fxRack.serializeSteps() : '';
   return new URLSearchParams({
-    mode:           dom.param('mode').value,
-    threshold:      fx.threshold      ?? PARAM_RANGES.threshold.off,
-    blue_tolerance: fx.blue_tolerance ?? PARAM_RANGES.blue_tolerance.off,
-    smoothing:      fx.smoothing      ?? PARAM_RANGES.smoothing.off,
-    contrast:       fx.contrast       ?? PARAM_RANGES.contrast.off,
-    format:         dom.param('format').value,
-    order:          fxRack ? fxRack.getOrder().join(',') : '',
+    mode:   dom.param('mode').value,
+    steps,
+    format: dom.param('format').value,
     ...extra,
   });
 }
@@ -401,10 +395,11 @@ function safeErrorCode(raw) {
 /** Sync blue_tolerance slot visibility based on the current mode. */
 function syncBlueSlotVisibility() {
   if (!fxRack) return;
-  const blueSlot = fxRack.get('blue_tolerance');
-  if (!blueSlot) return;
   const mode = dom.param('mode').value;
-  blueSlot.el.style.display = (mode !== 'auto' && mode !== 'blue') ? 'none' : '';
+  const hide = mode !== 'auto' && mode !== 'blue';
+  for (const slot of fxRack.getByEffect('blue_tolerance')) {
+    slot.el.style.display = hide ? 'none' : '';
+  }
 }
 
 /** Validate an integer param from an external source (A08). */
@@ -590,8 +585,10 @@ async function analyzeImage() {
     // A03/A08 — validate returned presets against whitelists and ranges
     if (!data || typeof data !== 'object') return;
     if (!VALID_MODES.has(data.mode)) return;
-    for (const name of Object.keys(PARAM_RANGES)) {
-      if (!isValidParam(name, data[name])) return;
+    if (!Array.isArray(data.steps)) return;
+    for (const step of data.steps) {
+      if (!step || !VALID_EFFECTS.has(step.effect)) return;
+      if (!isValidParam(step.effect, step.value)) return;
     }
 
     pendingPresets = data;
@@ -610,14 +607,10 @@ function applyPresets() {
   const p = pendingPresets;
 
   dom.param('mode').value = p.mode;
-  syncBlueSlotVisibility();
 
-  // Effect sliders
-  const presetSlots = { threshold: p.threshold, blue_tolerance: p.blue_tolerance, smoothing: p.smoothing, contrast: p.contrast };
-  for (const [name, value] of Object.entries(presetSlots)) {
-    const slot = fxRack.get(name);
-    if (slot) slot.setValue(value);
-  }
+  // Rebuild rack from detected steps
+  loadStepsIntoRack(p.steps);
+  syncBlueSlotVisibility();
 
   // Auto-detect always imposes dirty state
   markPresetDirty();
@@ -651,75 +644,57 @@ function savePresetsMap(map) {
 }
 
 /**
- * Serialize the current form state to a query string.
- * Includes mode, format, slider values, toggle states, and rack order.
+ * Serialize the current form state to a JSON string.
+ * Includes mode, format, and the full steps pipeline.
  */
 function serializePreset() {
   if (!fxRack) return '';
-  const params = new URLSearchParams();
-  params.set('mode', dom.param('mode').value);
-  params.set('format', dom.param('format').value);
-  for (const slot of fxRack.slots) {
-    params.set(slot.name, slot._slider ? slot._slider.value : slot._offValue);
-    params.set(slot.name + '_off', slot.enabled ? '0' : '1');
-  }
-  params.set('order', fxRack.getOrder().join(','));
-  return params.toString();
+  return JSON.stringify({
+    mode: dom.param('mode').value,
+    format: dom.param('format').value,
+    steps: fxRack.slots.map(s => ({
+      effect: s.effect,
+      value: s._slider ? Number(s._slider.value) : s._offValue,
+      enabled: s.enabled,
+    })),
+  });
 }
 
 /**
- * Apply a query string preset to the form controls.
+ * Load steps into the rack — clear existing slots and rebuild from an array.
+ * @param {Array<{effect: string, value: number, enabled?: boolean}>} steps
+ */
+function loadStepsIntoRack(steps) {
+  if (!fxRack || !Array.isArray(steps)) return;
+  fxRack.clear();
+  for (const step of steps) {
+    if (!VALID_EFFECTS.has(step.effect)) continue;
+    const enabled = step.enabled !== undefined ? step.enabled : true;
+    fxRack.addSlot(step.effect, step.value, enabled);
+  }
+}
+
+/**
+ * Apply a JSON preset string to the form controls.
  * Returns true if the preset was valid and applied.
  */
-function loadPreset(qs) {
-  if (!fxRack || !qs) return false;
-  const params = new URLSearchParams(qs);
+function loadPreset(raw) {
+  if (!fxRack || !raw) return false;
+  let preset;
+  try { preset = JSON.parse(raw); } catch { return false; }
+  if (!preset || typeof preset !== 'object') return false;
 
   // A03 — validate mode and format against whitelists
-  const mode = params.get('mode');
-  if (mode && VALID_MODES.has(mode)) {
-    dom.param('mode').value = mode;
+  if (preset.mode && VALID_MODES.has(preset.mode)) {
+    dom.param('mode').value = preset.mode;
   }
-  const fmt = params.get('format');
-  if (fmt && VALID_FORMATS.has(fmt)) {
-    dom.param('format').value = fmt;
+  if (preset.format && VALID_FORMATS.has(preset.format)) {
+    dom.param('format').value = preset.format;
   }
 
-  // Apply slider values and toggle states (A08 — range-checked)
-  for (const slot of fxRack.slots) {
-    const raw = params.get(slot.name);
-    if (raw !== null) {
-      const v = parseInt(raw, 10);
-      const range = PARAM_RANGES[slot.name];
-      if (range && Number.isInteger(v) && v >= range.min && v <= range.max) {
-        slot.setValue(v);
-      }
-    }
-    const off = params.get(slot.name + '_off');
-    if (off !== null && slot._checkbox) {
-      const shouldDisable = off === '1';
-      if (slot.enabled === shouldDisable) {
-        slot._checkbox.checked = !shouldDisable;
-        slot._checkbox.dispatchEvent(new Event('change'));
-      }
-    }
-  }
-
-  // Apply rack order
-  const order = params.get('order');
-  if (order) {
-    const names = order.split(',');
-    // A03 — only reorder with known effect names
-    const known = new Set(fxRack.slots.map(s => s.name));
-    if (names.every(n => known.has(n)) && names.length === fxRack.slots.length) {
-      for (const name of names) {
-        const slot = fxRack.get(name);
-        if (slot) fxRack.el.appendChild(slot.el);
-      }
-      // Rebuild internal order
-      const ordered = [...fxRack.el.querySelectorAll('.rack-slot')];
-      fxRack.slots.sort((a, b) => ordered.indexOf(a.el) - ordered.indexOf(b.el));
-    }
+  // Rebuild rack from steps
+  if (Array.isArray(preset.steps)) {
+    loadStepsIntoRack(preset.steps);
   }
 
   syncBlueSlotVisibility();
@@ -835,12 +810,14 @@ function syncApiDoc() {
   const params = buildExtractParams();
   dom.apiEndpoint.textContent = '/extract?' + params.toString();
 
-  // Params table
+  // Params table — show mode, then each step, then format
   const rows = [];
-  for (const [key, val] of params) {
-    const range = PARAM_RANGES[key];
-    rows.push(`<tr><td>${key}</td><td>${val}</td><td>${range ? 'int' : 'string'}</td><td>${range ? range.min + '–' + range.max : '—'}</td></tr>`);
+  rows.push(`<tr><td>mode</td><td>${dom.param('mode').value}</td><td>string</td><td>—</td></tr>`);
+  for (const step of fxRack.getSteps()) {
+    const range = PARAM_RANGES[step.effect];
+    rows.push(`<tr><td>${step.effect}</td><td>${step.value}</td><td>int</td><td>${range ? range.min + '–' + range.max : '—'}</td></tr>`);
   }
+  rows.push(`<tr><td>format</td><td>${dom.param('format').value}</td><td>string</td><td>—</td></tr>`);
   dom.apiParamsBody.innerHTML = rows.join('');
 
   // Response mime
@@ -1340,11 +1317,12 @@ dom.param('format').onchange = () => {
 // Auto-detect button
 dom.autoDetectBtn.onclick = applyPresets;
 
-// Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
-fxRack = new FxRack(document.querySelector('.rack'), {
-  defaults: FX_DEFAULTS,
-  onChange: () => { syncPresetUI(); requestExtract(); },
-});
+// Effects rack — dynamic slots, add/remove, drag & drop
+fxRack = new FxRack(
+  document.querySelector('.rack'),
+  document.querySelector('.rack-header'),
+  { onChange: () => { syncPresetUI(); requestExtract(); } },
+);
 
 // Presets — wire after fxRack is ready
 refreshPresetSelect();
@@ -1475,18 +1453,17 @@ fetch('/config')
 
     if (VALID_MODES.has(cfg.mode)) {
       dom.param('mode').value = cfg.mode;
-      dom.param('mode').onchange();
     }
     if (VALID_FORMATS.has(cfg.format)) {
       dom.param('format').value = cfg.format;
     }
-    // Apply server defaults to rack slots via FxSlot.setValue()
-    for (const name of Object.keys(PARAM_RANGES)) {
-      if (isValidParam(name, cfg[name])) {
-        const slot = fxRack.get(name);
-        if (slot) slot.setValue(cfg[name]);
-      }
+
+    // Build initial rack from server default steps
+    if (Array.isArray(cfg.steps)) {
+      const validSteps = cfg.steps.filter(s => s && VALID_EFFECTS.has(s.effect) && isValidParam(s.effect, s.value));
+      loadStepsIntoRack(validSteps);
     }
+    syncBlueSlotVisibility();
 
     // Render mode from server config
     const VALID_RENDER = new Set(['live', 'manual', 'auto']);
@@ -1505,8 +1482,6 @@ fetch('/config')
     presetSnapshot = defaultPresetQs;
     syncPresetUI();
 
-    // URL sync — apply preset from query string if present (e.g. shared link)
-    const urlQs = window.location.search.slice(1);
-    if (urlQs) loadPreset(urlQs);
+    // URL sync removed — presets now use JSON format, not query strings
   })
   .catch(() => {});

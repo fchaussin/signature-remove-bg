@@ -85,43 +85,19 @@
       </div>
     </div>
 
+    <div class="rack-header">
+      <select class="rack-effect-select" aria-label="Add effect">
+        <option value="threshold" data-i18n="threshold.label">Luminosity threshold</option>
+        <option value="blue_tolerance" data-i18n="blue_tolerance.label">Blue tolerance</option>
+        <option value="contrast" data-i18n="contrast.label">Contrast</option>
+        <option value="smoothing" data-i18n="smoothing.label">Edge smoothing</option>
+      </select>
+      <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect">
+        <span data-icon="plus" data-icon-size="14"></span>
+      </button>
+    </div>
     <div class="rack" role="list" aria-label="Effects chain">
-      <div class="rack-slot" data-effect="threshold" role="listitem">
-        <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
-        <span class="rack-icon" data-icon="sun" data-icon-size="16"></span>
-        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
-        <div class="rack-body">
-          <label><span data-i18n="threshold.label">Luminosity threshold:</span> <span data-display="threshold">220</span></label>
-          <input type="range" data-param="threshold" min="50" max="250" value="220">
-        </div>
-      </div>
-      <div class="rack-slot" data-effect="blue_tolerance" role="listitem">
-        <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
-        <span class="rack-icon" data-icon="droplet" data-icon-size="16"></span>
-        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
-        <div class="rack-body">
-          <label><span data-i18n="blue_tolerance.label">Blue tolerance:</span> <span data-display="blue_tolerance">80</span></label>
-          <input type="range" data-param="blue_tolerance" min="20" max="200" value="80">
-        </div>
-      </div>
-      <div class="rack-slot" data-effect="contrast" role="listitem">
-        <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
-        <span class="rack-icon" data-icon="circle-half" data-icon-size="16"></span>
-        <label class="rack-toggle"><input type="checkbox"><span class="rack-toggle-mark"></span></label>
-        <div class="rack-body">
-          <label><span data-i18n="contrast.label">Contrast:</span> <span data-display="contrast">0</span></label>
-          <input type="range" data-param="contrast" min="0" max="100" value="0">
-        </div>
-      </div>
-      <div class="rack-slot" data-effect="smoothing" role="listitem">
-        <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
-        <span class="rack-icon" data-icon="waves" data-icon-size="16"></span>
-        <label class="rack-toggle"><input type="checkbox" checked><span class="rack-toggle-mark"></span></label>
-        <div class="rack-body">
-          <label><span data-i18n="smoothing.label">Edge smoothing:</span> <span data-display="smoothing">30</span></label>
-          <input type="range" data-param="smoothing" min="0" max="100" value="30">
-        </div>
-      </div>
+      <!-- Slots are created dynamically by FxRack -->
     </div>
 
     <div class="previews">

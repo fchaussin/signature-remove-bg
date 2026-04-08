@@ -97,6 +97,12 @@ const Icon = (() => {
       '<polyline points="8 6 2 12 8 18"/>',
     ],
 
+    // Plus — add slot
+    plus: [
+      '<line x1="12" y1="5" x2="12" y2="19"/>',
+      '<line x1="5" y1="12" x2="19" y2="12"/>',
+    ],
+
     // Play — render button
     play: [
       '<polygon points="6 3 20 12 6 21 6 3"/>',
@@ -137,10 +143,11 @@ const Icon = (() => {
 
   /**
    * Replace every <span data-icon="name"> (optionally data-icon-size="N")
-   * in the document with the corresponding inline SVG.
+   * in the given scope (defaults to document) with the corresponding inline SVG.
+   * @param {Element} [scope] — root element to search within
    */
-  function inject() {
-    document.querySelectorAll('[data-icon]').forEach(el => {
+  function inject(scope) {
+    (scope || document).querySelectorAll('[data-icon]').forEach(el => {
       const name = el.dataset.icon;
       const size = el.dataset.iconSize;
       const svg  = get(name, size ? Number(size) : undefined);

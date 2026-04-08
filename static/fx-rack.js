@@ -1,51 +1,54 @@
 'use strict';
 
 /**
- * FxRack — Manages an ordered collection of FxSlot instances.
+ * FxRack — Manages a dynamic, ordered collection of FxSlot instances.
  *
- * Responsibilities (SRP):
- *  - Instantiate FxSlot (or subclasses) from DOM .rack-slot elements
- *  - Handle drag & drop reordering (handle-only to avoid slider conflicts)
- *  - Expose aggregated values for all slots (used by extractSignature)
+ * Responsibilities:
+ *  - Create / remove slots dynamically (add/remove buttons)
+ *  - Enforce min / max slot count
+ *  - Handle drag & drop reordering
+ *  - Expose aggregated step values for the extraction API
  *  - Notify the host app on any change via a single callback
- *
- * Separation of Concerns:
- *  - FxRack does NOT know about the extraction API or the DOM outside .rack
- *  - FxSlot does NOT know about other slots or the rack container
- *  - app.js orchestrates both via the onChange callback
- *
- * Open/Closed Principle:
- *  - New effects = new FxSlot subclass + HTML slot — no FxRack changes needed
- *  - Custom slot types can be registered via slotTypes map
+ *  - Update duplicate labels (e.g. "Threshold #2" when same effect appears twice)
  */
 class FxRack {
 
   /**
-   * @param {HTMLElement} el        — the .rack container element
-   * @param {object}      opts
-   * @param {object}      opts.defaults    — { effectName: { off: number } }
-   * @param {object}      opts.slotTypes   — { effectName: FxSlotSubclass } (optional overrides)
-   * @param {function}    opts.onChange     — called on any slot value/toggle/order change
+   * Effect metadata — icon, i18n label key, slider range, default value, default on/off.
+   * This is the single source of truth for slot appearance.
    */
-  constructor(el, { defaults = {}, slotTypes = {}, onChange = () => {} } = {}) {
+  static EFFECTS = {
+    threshold:      { icon: 'sun',         labelKey: 'threshold.label',      min: 50,  max: 250, off: 220, defaultOn: true },
+    blue_tolerance: { icon: 'droplet',     labelKey: 'blue_tolerance.label', min: 20,  max: 200, off: 80,  defaultOn: true },
+    contrast:       { icon: 'circle-half', labelKey: 'contrast.label',       min: 0,   max: 100, off: 0,   defaultOn: false },
+    smoothing:      { icon: 'waves',       labelKey: 'smoothing.label',      min: 0,   max: 100, off: 30,  defaultOn: true },
+  };
+
+  static MIN_SLOTS = 1;
+  static MAX_SLOTS = 7;
+
+  /**
+   * @param {HTMLElement} el        — the .rack container
+   * @param {HTMLElement} headerEl  — the .rack-header container (select + add button)
+   * @param {object}      opts
+   * @param {function}    opts.onChange — called on any slot value/toggle/order/add/remove change
+   */
+  constructor(el, headerEl, { onChange = () => {} } = {}) {
     this.el        = el;
-    this._defaults = defaults;
+    this._headerEl = headerEl;
     this._onChange  = onChange;
+    this._idCounter = 0;
 
     /** @type {FxSlot[]} ordered list of slots */
     this.slots = [];
 
-    // Instantiate slots from DOM order
-    el.querySelectorAll('.rack-slot').forEach(slotEl => {
-      const name = slotEl.dataset.effect;
-      if (!name) return;
-      const Ctor = slotTypes[name] || FxSlot;
-      const off  = (defaults[name] && defaults[name].off) ?? 0;
-      const slot = new Ctor(slotEl, {
-        offValue: off,
-        onChange: () => this._onChange(),
-      });
-      this.slots.push(slot);
+    // Header controls
+    this._effectSelect = headerEl.querySelector('.rack-effect-select');
+    this._addBtn       = headerEl.querySelector('[data-action="add-slot"]');
+
+    this._addBtn.addEventListener('click', () => {
+      const effect = this._effectSelect.value;
+      if (effect) this.addSlot(effect);
     });
 
     this._initDragAndDrop();
@@ -54,41 +57,123 @@ class FxRack {
   /* -- Public API -------------------------------------------------------- */
 
   /**
-   * Get a slot by effect name.
-   * @param {string} name
-   * @returns {FxSlot|undefined}
+   * Add a new slot for the given effect.
+   * @param {string} effect — effect name
+   * @param {number} [value] — initial value (defaults to effect's off value)
+   * @param {boolean} [enabled] — initial toggle state (defaults to effect's defaultOn)
+   * @returns {FxSlot|null} the created slot, or null if max reached
    */
-  get(name) {
-    return this.slots.find(s => s.name === name);
+  addSlot(effect, value, enabled) {
+    if (this.slots.length >= FxRack.MAX_SLOTS) return null;
+    const meta = FxRack.EFFECTS[effect];
+    if (!meta) return null;
+
+    const id = `${effect}_${this._idCounter++}`;
+    const label = typeof i18n !== 'undefined' ? i18n.t(meta.labelKey) : meta.labelKey;
+    const slotMeta = { ...meta, label };
+
+    const slot = new FxSlot(effect, id, slotMeta, {
+      onChange: () => this._onChange(),
+      onRemove: (s) => this.removeSlot(s.id),
+    });
+
+    if (value !== undefined) slot.setValue(value);
+    if (enabled !== undefined) slot.setEnabled(enabled);
+
+    this.slots.push(slot);
+    this.el.appendChild(slot.el);
+
+    // Inject SVG icons into the new slot
+    if (typeof Icon !== 'undefined') Icon.inject(slot.el);
+
+    this._syncLabels();
+    this._syncButtons();
+    this._onChange();
+    return slot;
   }
 
   /**
-   * Return a plain object of { effectName: effectiveValue } for all slots.
-   * Values respect toggle state (disabled → offValue).
+   * Remove a slot by instance ID.
+   * @param {string} id
    */
-  getValues() {
-    const values = {};
-    for (const slot of this.slots) {
-      values[slot.name] = slot.value;
+  removeSlot(id) {
+    if (this.slots.length <= FxRack.MIN_SLOTS) return;
+    const idx = this.slots.findIndex(s => s.id === id);
+    if (idx === -1) return;
+    const slot = this.slots[idx];
+    slot.el.remove();
+    this.slots.splice(idx, 1);
+    this._syncLabels();
+    this._syncButtons();
+    this._onChange();
+  }
+
+  /** Remove all slots (used before loading a new configuration). */
+  clear() {
+    for (const slot of this.slots) slot.el.remove();
+    this.slots = [];
+    this._syncButtons();
+  }
+
+  /**
+   * Return the current pipeline as an array of {effect, value} objects.
+   * Respects toggle state (disabled → offValue).
+   */
+  getSteps() {
+    return this.slots.map(s => ({ effect: s.effect, value: s.value }));
+  }
+
+  /**
+   * Serialize the pipeline to API query format: "effect:value,effect:value,..."
+   */
+  serializeSteps() {
+    return this.getSteps().map(s => `${s.effect}:${s.value}`).join(',');
+  }
+
+  /**
+   * Get all slots for a given effect name.
+   * @param {string} effect
+   * @returns {FxSlot[]}
+   */
+  getByEffect(effect) {
+    return this.slots.filter(s => s.effect === effect);
+  }
+
+  /* -- Private ----------------------------------------------------------- */
+
+  /** Update labels to show index when duplicates exist (e.g. "Threshold #2"). */
+  _syncLabels() {
+    const counts = {};
+    for (const s of this.slots) {
+      counts[s.effect] = (counts[s.effect] || 0) + 1;
     }
-    return values;
+    const seen = {};
+    for (const s of this.slots) {
+      const meta = FxRack.EFFECTS[s.effect];
+      const label = typeof i18n !== 'undefined' ? i18n.t(meta.labelKey) : meta.labelKey;
+      seen[s.effect] = (seen[s.effect] || 0) + 1;
+      if (counts[s.effect] > 1) {
+        s.setLabel(`${label} #${seen[s.effect]}`);
+      } else {
+        s.setLabel(label);
+      }
+    }
   }
 
-  /**
-   * Return the current effect order as an array of names.
-   * @returns {string[]}
-   */
-  getOrder() {
-    return this.slots.map(s => s.name);
+  /** Enable/disable add and remove buttons based on slot count. */
+  _syncButtons() {
+    const atMax = this.slots.length >= FxRack.MAX_SLOTS;
+    const atMin = this.slots.length <= FxRack.MIN_SLOTS;
+    this._addBtn.disabled = atMax;
+    for (const s of this.slots) {
+      s.setRemovable(!atMin);
+    }
   }
-
-  /* -- Private: drag & drop ---------------------------------------------- */
 
   _initDragAndDrop() {
     const rack = this.el;
     let draggedSlot = null;
 
-    // Only enable draggable when grabbing the handle (avoids slider conflict)
     rack.addEventListener('mousedown', e => {
       const handle = e.target.closest('.rack-handle');
       if (!handle) return;
@@ -102,7 +187,7 @@ class FxRack {
       draggedSlot = slotEl;
       slotEl.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');  // required for Firefox
+      e.dataTransfer.setData('text/plain', '');
     });
 
     rack.addEventListener('dragover', e => {

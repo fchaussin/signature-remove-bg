@@ -48,6 +48,7 @@
   "render.live_title": "Live preview (slow on large images)",
   "render.btn": "Render",
   "render.btn_title": "Render (Ctrl+Enter)",
+  "rack.add_title": "Add effect",
   "hint.small_image": "\u26a0 Small image ({w}\u00d7{h}) \u2014 upscaled for preview. Zoom in more before capturing for better results.",
   "hint.large_image": "\u2139 Large image ({w}\u00d7{h}) \u2014 preview is scaled down. Click zoom to view at actual size.",
   "zoom.actual_size": "Actual size (1:1) \u2014 {w}\u00d7{h}",
