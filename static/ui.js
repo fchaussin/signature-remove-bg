@@ -64,7 +64,7 @@ function closeDialog(dialog) {
  * @param {HTMLElement} target    — element to apply background style to
  * @param {string}      syncGroup — group name for synced pickers
  * @param {object}      styles    — { key: cssValue } map of background styles
- * @param {Set}         validKeys — whitelist of allowed keys (OWASP A03)
+ * @param {Set}         validKeys — whitelist of allowed keys
  */
 const _bgPickerGroups = {};
 

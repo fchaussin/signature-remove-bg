@@ -12,15 +12,15 @@ const t = i18n.t.bind(i18n);
  *   1. DOM references       — single unified `dom` object
  *   2. Mutable state        — every `let` in one block, grouped by feature
  *   3. Core functions       — loadFile, checkResolution, extractSignature,
- *                             downloadExtracted
- *   4. Presets              — save / load / delete, dirty state, API doc
- *   5. Render mode          — live / manual / auto
- *   6. Effects rack         — FxRack instance (see fx-rack.js, fx-slot.js)
- *   7. initZoom()           — zoom popup logic
- *   8. initCrop()           — crop overlay logic
- *   9. initBase64()         — base64 export popup (formatting in utils.js)
- *  10. Bootstrap            — upload events, paste, init calls, bg-pickers
- *      (comparison slider in ui.js)
+ *                             analyzeImage, downloadExtracted
+ *   4. Presets              — save / load / delete, dirty state
+ *   5. API doc              — live request preview
+ *   6. Render mode          — live / manual / auto
+ *   7. Effects rack         — debouncedExtract (FxRack in fx-rack.js)
+ *   8. initZoom()           — zoom popup
+ *   9. initCrop()           — crop overlay
+ *  10. initBase64()         — base64 export popup (formatting in utils.js)
+ *  11. Bootstrap            — upload, paste, controls, async init gate
  * ===================================================================== */
 
 
@@ -38,7 +38,7 @@ const dom = {
   savePresetOverlay: document.getElementById('save-preset'),
   deletePresetOverlay: document.getElementById('delete-preset'),
 
-  // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
+  // Dynamic lookups — whitelisted
   _VALID_PARAMS: new Set(['mode', 'format']),
   _VALID_DISPLAYS: new Set([]),
   param(name) {
@@ -186,7 +186,8 @@ let dragStartVal = 0;
 let base64DataUri = '';
 
 // Auto-detect
-let pendingPresets = null;  // presets from /analyze, awaiting user click
+let pendingPresets  = null;  // presets from /analyze, awaiting user click
+let _analyzeCleanup = null;  // teardown function for analyze:ready/failed listeners
 
 // Presets — dirty state
 let presetSnapshot = null;  // serialized query string when a preset was loaded (null = none)
@@ -282,12 +283,19 @@ function loadFile(f) {
   dom.editor.classList.add('visible');
   clearRenderStale();
 
+  // Clean up any lingering analyze listeners from a previous upload
+  if (_analyzeCleanup) _analyzeCleanup();
+
   if (analyzeOnUpload) {
     // Analyze first → apply presets → then extract with detected values
     // If analysis fails → extract with current defaults
-    const onResult = () => {
+    const cleanup = () => {
       document.removeEventListener('analyze:ready', onResult);
       document.removeEventListener('analyze:failed', onFail);
+      if (_analyzeCleanup === cleanup) _analyzeCleanup = null;
+    };
+    const onResult = () => {
+      cleanup();
       // Apply detected presets then force extraction (bypass render mode)
       if (pendingPresets && fxRack) {
         dom.param('mode').value = pendingPresets.mode;
@@ -297,10 +305,10 @@ function loadFile(f) {
       extractSignature();
     };
     const onFail = () => {
-      document.removeEventListener('analyze:ready', onResult);
-      document.removeEventListener('analyze:failed', onFail);
+      cleanup();
       extractSignature();   // fallback with current defaults
     };
+    _analyzeCleanup = cleanup;
     document.addEventListener('analyze:ready', onResult);
     document.addEventListener('analyze:failed', onFail);
     analyzeImage();
@@ -334,6 +342,7 @@ async function extractSignature() {
   if (extractController) extractController.abort();
   extractController = new AbortController();
 
+  const gen = fileGeneration;
   setBusy(true);
   dom.statusLabel.textContent = t('status.uploading');
   setProgress(0);
@@ -353,12 +362,13 @@ async function extractSignature() {
         }
       },
     });
+    if (fileGeneration !== gen) return; // stale — file changed during request
     if (!res.ok) {
       dom.statusLabel.textContent = t('error.' + safeErrorCode((res.json && res.json.code) || ''));
       setBusy(false);
       return;
     }
-    if (!res.blob || !VALID_RESPONSE_MIMES.has(res.blob.type)) {               // A04
+    if (!res.blob || !VALID_RESPONSE_MIMES.has(res.blob.type)) {
       dom.statusLabel.textContent = t('error.UNKNOWN');
       setBusy(false);
       return;
@@ -376,7 +386,7 @@ async function extractSignature() {
 
 function downloadExtracted() {
   const fmt = dom.param('format').value;
-  if (!VALID_FORMATS.has(fmt)) return; // reject tampered value (OWASP A03)
+  if (!VALID_FORMATS.has(fmt)) return;
   const a = document.createElement('a');
   a.href = dom.extractedImg.src;
   a.download = `signature.${fmt}`;
@@ -410,7 +420,7 @@ async function analyzeImage() {
     if (!res.ok) return;
     if (fileGeneration !== gen) return; // stale — file changed during request
     const data = await res.json();
-    // A03/A08 — validate returned presets against whitelists and ranges
+    // Validate returned presets
     if (!data || typeof data !== 'object') return;
     if (!VALID_MODES.has(data.mode)) return;
     if (!Array.isArray(data.steps)) return;
@@ -515,7 +525,7 @@ function loadPreset(raw) {
   try { preset = JSON.parse(raw); } catch { return false; }
   if (!preset || typeof preset !== 'object') return false;
 
-  // A03 — validate mode and format against whitelists
+  // Validate mode and format
   if (preset.mode && VALID_MODES.has(preset.mode)) {
     dom.param('mode').value = preset.mode;
   }
@@ -642,14 +652,22 @@ function syncApiDoc() {
   dom.apiEndpoint.textContent = '/extract?' + params.toString();
 
   // Params table — show mode, then each step, then format
-  const rows = [];
-  rows.push(`<tr><td>mode</td><td>${dom.param('mode').value}</td><td>string</td><td>—</td></tr>`);
+  dom.apiParamsBody.textContent = '';
+  const addRow = (name, val, type, range) => {
+    const tr = document.createElement('tr');
+    for (const text of [name, String(val), type, range]) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    dom.apiParamsBody.appendChild(tr);
+  };
+  addRow('mode', dom.param('mode').value, 'string', '—');
   for (const step of fxRack.getSteps()) {
     const range = PARAM_RANGES[step.effect];
-    rows.push(`<tr><td>${step.effect}</td><td>${step.value}</td><td>int</td><td>${range ? range.min + '–' + range.max : '—'}</td></tr>`);
+    addRow(step.effect, step.value, 'int', range ? range.min + '–' + range.max : '—');
   }
-  rows.push(`<tr><td>format</td><td>${dom.param('format').value}</td><td>string</td><td>—</td></tr>`);
-  dom.apiParamsBody.innerHTML = rows.join('');
+  addRow('format', dom.param('format').value, 'string', '—');
 
   // Response mime
   const fmt = dom.param('format').value;
@@ -826,7 +844,7 @@ function initCrop() {
     }
   }
 
-  // Handle drag — validate edge against whitelist (OWASP A08)
+  // Handle drag
   dom.cropArea.addEventListener('mousedown', e => {
     const handle = e.target.closest('.crop-handle');
     if (!handle) return;
@@ -959,7 +977,7 @@ function initBase64() {
         return;
       }
       const data = res.json;
-      // A08 — strict validation: must be data:image/(png|webp);base64, with valid chars only
+      // Validate base64 data URI format
       if (!data || typeof data.base64 !== 'string' || !B64_URI_RE.test(data.base64)) {
         dom.statusLabel.textContent = t('error.UNKNOWN');
         setBusy(false);
@@ -997,7 +1015,7 @@ function initBase64() {
   // Open via button
   dom.extractedPanel.querySelector('[data-action="base64"]').onclick = openBase64;
 
-  // Close & clear (A04 — don't leave image data in DOM)
+  // Close & clear
   function closeBase64() {
     closeDialog(dom.base64Overlay);
     dom.base64Textarea.value = '';
@@ -1210,7 +1228,7 @@ document.addEventListener('i18n:ready', () => {
 });
 i18n.init();
 
-// Load server defaults and apply to controls (OWASP A08 — validate response shape)
+// Load server defaults and apply to controls
 fetch('/config')
   .then(res => res.ok ? res.json() : null)
   .then(cfg => {

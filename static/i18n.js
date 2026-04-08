@@ -36,7 +36,7 @@ window.i18n = {
 
   /** Fetch a locale JSON file. Returns the parsed object or {} on failure. */
   async _fetch(lang) {
-    // Sanitize lang code: only allow lowercase letters (OWASP A03 — path traversal)
+    // Sanitize lang code: only allow lowercase letters
     if (!/^[a-z]{2,3}$/.test(lang)) return {};
     try {
       const res = await fetch(`/static/lang/${lang}.json`);

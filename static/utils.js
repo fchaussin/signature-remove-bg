@@ -36,7 +36,7 @@ function debounce(fn, ms) {
 
 /**
  * Create a blob URL and revoke the previous one stored under the same key.
- * Prevents memory leaks from accumulated object URLs (OWASP A04).
+ * Prevents memory leaks from accumulated object URLs.
  */
 const _objectURLs = Object.create(null);
 function safeObjectURL(key, blob) {
@@ -138,11 +138,10 @@ function postWithProgress(url, formData, { signal, onProgress, timeout = 120_000
 
 
 /* ===================================================================
- *  6. Validation helpers (OWASP A03/A04/A08)
- *     Depend on constants from constants.js (loaded before this file).
+ *  6. Validation helpers
  * =================================================================== */
 
-/** Validate file client-side before upload (A04 — early rejection). */
+/** Validate file client-side before upload. */
 function validateFile(f) {
   if (!f) return null;
   if (!ALLOWED_TYPES.includes(f.type)) return 'INVALID_FILE';
@@ -150,12 +149,12 @@ function validateFile(f) {
   return null;
 }
 
-/** Validate a server error code against the whitelist (A03). */
+/** Validate a server error code against the whitelist. */
 function safeErrorCode(raw) {
   return VALID_ERROR_CODES.has(raw) ? raw : 'UNKNOWN';
 }
 
-/** Validate an integer param from an external source (A08). */
+/** Validate an integer param against its range. */
 function isValidParam(name, value) {
   const r = PARAM_RANGES[name];
   return r && Number.isInteger(value) && value >= r.min && value <= r.max;
@@ -171,18 +170,18 @@ function isValidParam(name, value) {
  *
  * @param {string} dataUri    — validated data URI (data:image/…;base64,…)
  * @param {string} fmt        — output format key
- * @param {Set}    validFmts  — whitelist of allowed format keys (A03)
- * @param {Set}    validMimes — whitelist of allowed MIME types (A03)
+ * @param {Set}    validFmts  — whitelist of allowed format keys
+ * @param {Set}    validMimes — whitelist of allowed MIME types
  * @returns {string} formatted output, or '' on invalid input
  */
 function formatBase64(dataUri, fmt, validFmts, validMimes) {
-  if (!validFmts.has(fmt)) return '';              // A03 — reject unknown format
+  if (!validFmts.has(fmt)) return '';
   // Parse parts from data URI: "data:image/png;base64,iVBOR..."
   const semiIdx  = dataUri.indexOf(';');
   const commaIdx = dataUri.indexOf(',');
-  if (semiIdx < 0 || commaIdx < 0) return '';      // A08 — malformed URI
+  if (semiIdx < 0 || commaIdx < 0) return '';
   const mime = dataUri.substring(5, semiIdx);       // "image/png"
-  if (!validMimes.has(mime)) return '';              // A03 — reject unexpected mime
+  if (!validMimes.has(mime)) return '';
   const raw  = dataUri.substring(commaIdx + 1);     // raw base64 string
 
   switch (fmt) {

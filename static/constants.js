@@ -31,20 +31,20 @@ const VALID_EDGES   = new Set(['top', 'bottom', 'left', 'right']);
 
 
 /* ===================================================================
- *  2. Validation whitelists (OWASP A03/A08)
+ *  2. Validation whitelists
  * =================================================================== */
 
 const VALID_FORMATS    = new Set(['png', 'webp']);
 const VALID_MODES      = new Set(['auto', 'dark', 'blue']);
 const ALLOWED_TYPES    = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
 
-// Whitelist error codes accepted from the server (A03)
+// Whitelist error codes accepted from the server
 const VALID_ERROR_CODES = new Set([
   'FILE_REQUIRED', 'INVALID_FILE', 'FILE_TOO_LARGE',
   'IMAGE_TOO_LARGE', 'PROCESSING_FAILED', 'UNKNOWN', 'NETWORK',
 ]);
 
-// Whitelist MIME types accepted in extraction responses (A04)
+// Whitelist MIME types accepted in extraction responses
 const VALID_RESPONSE_MIMES = new Set(['image/png', 'image/webp']);
 
 

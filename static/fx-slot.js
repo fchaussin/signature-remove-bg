@@ -98,11 +98,14 @@ class FxSlot {
       <span class="rack-icon" data-icon="${meta.icon}" data-icon-size="16"></span>
       <label class="rack-toggle"><input type="checkbox"${meta.defaultOn ? ' checked' : ''}><span class="rack-toggle-mark"></span></label>
       <div class="rack-body">
-        <label><span class="rack-label">${meta.label}</span> <span data-display="${this.effect}">${meta.off}</span></label>
+        <label><span class="rack-label"></span> <span data-display="${this.effect}"></span></label>
         <input type="range" data-param="${this.effect}" min="${meta.min}" max="${meta.max}" value="${meta.off}">
       </div>
       <button class="btn-remove-slot" data-action="remove-slot" aria-label="Remove" data-icon="close" data-icon-size="12"></button>
     `;
+    // Set text content safely (no HTML injection)
+    el.querySelector('.rack-label').textContent = meta.label;
+    el.querySelector('[data-display]').textContent = meta.off;
     return el;
   }
 
