@@ -59,8 +59,8 @@ MODE_BLUE = "blue"
 VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
 VALID_OUTPUTS = {"binary", "base64"}
-VALID_EFFECTS = ["threshold", "blue_tolerance", "contrast", "smoothing"]
-DEFAULT_ORDER = VALID_EFFECTS  # default pipeline order
+VALID_EFFECTS = {"threshold", "blue_tolerance", "contrast", "smoothing"}
+MAX_PIPELINE_STEPS = 7
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
 # BT.601 luminosity coefficients
@@ -328,32 +328,35 @@ _PIPELINE_STEPS = {
 def extract_signature(
     image: Image.Image,
     mode: str = MODE_AUTO,
-    threshold: int = 220,
-    blue_tolerance: int = 80,
-    smoothing: int = 30,
-    contrast: int = 0,
-    order: list[str] | None = None,
+    steps: list[tuple[str, int]] | None = None,
 ) -> Image.Image:
     """
     Extract signature pixels and make the background transparent.
 
-    Effects are applied as a pipeline in the given *order*.
+    *steps* is an ordered list of ``(effect_name, value)`` tuples.
+    The same effect may appear multiple times.
     Each step reads/modifies the alpha channel of the result.
     """
+    if steps is None:
+        steps = [
+            ("threshold", DEFAULT_THRESHOLD),
+            ("blue_tolerance", DEFAULT_BLUE_TOLERANCE),
+            ("smoothing", DEFAULT_SMOOTHING),
+            ("contrast", DEFAULT_CONTRAST),
+        ]
+
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
 
     result = np.array(image.convert("RGBA"))
     alpha = np.zeros(lum.shape, dtype=np.float64)
 
-    ctx = dict(r=r, g=g, b=b, lum=lum, result=result, mode=mode,
-               threshold=threshold, blue_tolerance=blue_tolerance,
-               smoothing=smoothing, contrast=contrast)
+    ctx = dict(r=r, g=g, b=b, lum=lum, result=result, mode=mode)
 
-    for step_name in (order or DEFAULT_ORDER):
-        fn = _PIPELINE_STEPS.get(step_name)
+    for effect_name, value in steps:
+        fn = _PIPELINE_STEPS.get(effect_name)
         if fn:
-            alpha = fn(alpha=alpha, **ctx)
+            alpha = fn(alpha=alpha, **ctx, **{effect_name: value})
 
     result[:, :, 3] = np.clip(alpha, 0, 255).astype(np.uint8)
     return Image.fromarray(result)
@@ -439,7 +442,7 @@ def detect_presets(image: Image.Image) -> dict:
     """
     Analyse an image and return optimal extraction parameters.
 
-    Returns ``{mode, threshold, blue_tolerance, smoothing, contrast}``.
+    Returns ``{mode, steps: [{effect, value}, ...]}``.
     """
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
@@ -450,20 +453,26 @@ def detect_presets(image: Image.Image) -> dict:
 
     if ink_count < MIN_INK_PIXELS:
         return {
-            "mode": MODE_AUTO, "threshold": threshold,
-            "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
-            "smoothing": DEFAULT_SMOOTHING, "contrast": DEFAULT_CONTRAST,
+            "mode": MODE_AUTO,
+            "steps": [
+                {"effect": "threshold",      "value": threshold},
+                {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
+                {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
+                {"effect": "contrast",       "value": DEFAULT_CONTRAST},
+            ],
         }
 
     ri, gi, bi = r[ink_mask], g[ink_mask], b[ink_mask]
     ink_b_mask = _blue_mask(ri, gi, bi)
 
     return {
-        "mode":           _detect_mode(ink_b_mask, ink_count),
-        "threshold":      threshold,
-        "blue_tolerance": _detect_blue_tolerance(bi, ri, gi, ink_b_mask),
-        "smoothing":      _detect_smoothing(lum, ink_mask),
-        "contrast":       _detect_contrast(lum[ink_mask]),
+        "mode": _detect_mode(ink_b_mask, ink_count),
+        "steps": [
+            {"effect": "threshold",      "value": threshold},
+            {"effect": "blue_tolerance", "value": _detect_blue_tolerance(bi, ri, gi, ink_b_mask)},
+            {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask)},
+            {"effect": "contrast",       "value": _detect_contrast(lum[ink_mask])},
+        ],
     }
 
 
@@ -545,13 +554,16 @@ async def config():
     """Expose non-sensitive extraction defaults to the frontend."""
     return JSONResponse({
         "mode":           DEFAULT_MODE,
-        "threshold":      DEFAULT_THRESHOLD,
-        "blue_tolerance": DEFAULT_BLUE_TOLERANCE,
-        "smoothing":      DEFAULT_SMOOTHING,
-        "contrast":       DEFAULT_CONTRAST,
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,
         "auto_manual_pixels": AUTO_MANUAL_PIXELS,
+        "max_steps":      MAX_PIPELINE_STEPS,
+        "steps": [
+            {"effect": "threshold",      "value": DEFAULT_THRESHOLD},
+            {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
+            {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
+            {"effect": "contrast",       "value": DEFAULT_CONTRAST},
+        ],
     }, headers={
         "Cache-Control": "public, max-age=3600",      # A04 — immutable defaults, safe to cache
     })
@@ -583,39 +595,55 @@ async def _validate_and_open(file: UploadFile) -> tuple[Image.Image | None, str,
     return image, safe_name, None
 
 
-def _parse_order(raw: str) -> list[str] | None:
-    """Parse and validate an effect order string (A03 — whitelist)."""
+def _parse_steps(raw: str) -> list[tuple[str, int]] | None:
+    """
+    Parse and validate a pipeline steps string (A03 — whitelist).
+
+    Format: ``effect:value,effect:value,...``
+    Example: ``threshold:200,blue_tolerance:80,smoothing:30``
+    Returns None on invalid input (caller uses defaults).
+    """
     if not raw:
         return None
-    names = [n.strip() for n in raw.split(",")]
-    valid = set(VALID_EFFECTS)
-    if len(names) != len(valid) or not all(n in valid for n in names):
-        return None  # invalid → fall back to default
-    return names
+    parts = [p.strip() for p in raw.split(",")]
+    if len(parts) > MAX_PIPELINE_STEPS:
+        return None
+    steps = []
+    for part in parts:
+        if ":" not in part:
+            return None
+        name, raw_val = part.split(":", 1)
+        if name not in VALID_EFFECTS:
+            return None
+        try:
+            val = int(raw_val)
+        except ValueError:
+            return None
+        rng = PARAM_RANGES.get(name)
+        if rng and not (rng["min"] <= val <= rng["max"]):
+            return None
+        steps.append((name, val))
+    return steps if steps else None
 
 
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),
     mode: str = Query(DEFAULT_MODE, enum=["auto", "dark", "blue"]),
-    threshold: int = Query(DEFAULT_THRESHOLD, ge=50, le=250),
-    blue_tolerance: int = Query(DEFAULT_BLUE_TOLERANCE, ge=20, le=200),
-    smoothing: int = Query(DEFAULT_SMOOTHING, ge=0, le=100),
-    contrast: int = Query(DEFAULT_CONTRAST, ge=0, le=100),
+    steps: str = Query("", description="Pipeline steps: effect:value,effect:value,..."),
     format: str = Query(DEFAULT_FORMAT, enum=["png", "webp"]),
     output: str = Query("binary", enum=["binary", "base64"]),
-    order: str = Query("", description="Comma-separated effect order"),
 ):
     """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
     image, safe_name, err = await _validate_and_open(file)
     if err:
         return err
 
-    parsed_order = _parse_order(order)
+    parsed_steps = _parse_steps(steps)
 
     async with _processing_semaphore:                    # A04 — limit concurrent CPU work
         try:
-            result = extract_signature(image, mode=mode, threshold=threshold, blue_tolerance=blue_tolerance, smoothing=smoothing, contrast=contrast, order=parsed_order)
+            result = extract_signature(image, mode=mode, steps=parsed_steps)
         except Exception:
             logger.exception("Extraction failed for %s", safe_name)
             return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
