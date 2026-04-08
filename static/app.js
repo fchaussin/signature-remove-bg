@@ -1342,6 +1342,7 @@ initBase64();
 Icon.inject();
 
 i18n.init();
+if (fxRack) fxRack.refreshLabels();
 
 // Load server defaults and apply to controls (OWASP A08 — validate response shape)
 fetch('/config')

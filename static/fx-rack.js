@@ -145,6 +145,9 @@ class FxRack {
     return this.slots.filter(s => s.effect === effect);
   }
 
+  /** Refresh all slot labels (call after i18n is ready). */
+  refreshLabels() { this._syncLabels(); }
+
   /* -- Private ----------------------------------------------------------- */
 
   /** Update labels to show index when duplicates exist (e.g. "Threshold #2"). */

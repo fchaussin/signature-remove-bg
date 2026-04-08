@@ -79,10 +79,12 @@ window.i18n = {
     document.documentElement.lang = this.lang;
   },
 
-  /** Detect browser language, load locale, apply to DOM. */
+  /** Detect browser language, load locale, apply to DOM, emit ready event. */
   async init() {
     const lang = (navigator.language || 'en').slice(0, 2).toLowerCase();
     await this.load(lang);
     this.apply();
+    this.ready = true;
+    document.dispatchEvent(new Event('i18n:ready'));
   }
 };
