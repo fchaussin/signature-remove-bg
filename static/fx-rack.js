@@ -18,37 +18,43 @@ class FxRack {
    * This is the single source of truth for slot appearance.
    */
   static EFFECTS = {
-    threshold:      { icon: 'sun',         labelKey: 'threshold.label',      min: 50,  max: 250, off: 220, defaultOn: true },
-    blue_tolerance: { icon: 'droplet',     labelKey: 'blue_tolerance.label', min: 20,  max: 200, off: 80,  defaultOn: true },
-    contrast:       { icon: 'circle-half', labelKey: 'contrast.label',       min: 0,   max: 100, off: 0,   defaultOn: false },
-    smoothing:      { icon: 'waves',       labelKey: 'smoothing.label',      min: 0,   max: 100, off: 30,  defaultOn: true },
+    threshold:      { icon: 'sun',         labelKey: 'threshold.name',      min: 50,  max: 250, off: 220, defaultOn: true },
+    blue_tolerance: { icon: 'droplet',     labelKey: 'blue_tolerance.name', min: 20,  max: 200, off: 80,  defaultOn: true },
+    contrast:       { icon: 'circle-half', labelKey: 'contrast.name',       min: 0,   max: 100, off: 0,   defaultOn: false },
+    smoothing:      { icon: 'waves',       labelKey: 'smoothing.name',      min: 0,   max: 100, off: 30,  defaultOn: true },
   };
 
   static MIN_SLOTS = 1;
   static MAX_SLOTS = 7;
 
   /**
-   * @param {HTMLElement} el        — the .rack container
-   * @param {HTMLElement} headerEl  — the .rack-header container (select + add button)
+   * @param {HTMLElement} el        — the .rack container (includes .rack-header)
    * @param {object}      opts
    * @param {function}    opts.onChange — called on any slot value/toggle/order/add/remove change
    */
-  constructor(el, headerEl, { onChange = () => {} } = {}) {
+  constructor(el, { onChange = () => {} } = {}) {
     this.el        = el;
-    this._headerEl = headerEl;
     this._onChange  = onChange;
     this._idCounter = 0;
 
     /** @type {FxSlot[]} ordered list of slots */
     this.slots = [];
 
-    // Header controls
-    this._effectSelect = headerEl.querySelector('.rack-effect-select');
-    this._addBtn       = headerEl.querySelector('[data-action="add-slot"]');
+    // Header controls (inside .rack)
+    this._headerEl     = el.querySelector('.rack-header');
+    this._effectSelect = this._headerEl.querySelector('.rack-effect-select');
+    this._addBtn       = this._headerEl.querySelector('[data-action="add-slot"]');
+
+    this._collapseBtn = this._headerEl.querySelector('[data-action="toggle-rack"]');
+    this._countEl     = this._headerEl.querySelector('.rack-count');
 
     this._addBtn.addEventListener('click', () => {
       const effect = this._effectSelect.value;
       if (effect) this.addSlot(effect);
+    });
+
+    this._collapseBtn.addEventListener('click', () => {
+      this.el.classList.toggle('collapsed');
     });
 
     this._initDragAndDrop();
@@ -73,7 +79,7 @@ class FxRack {
     const slotMeta = { ...meta, label };
 
     const slot = new FxSlot(effect, id, slotMeta, {
-      onChange: () => this._onChange(),
+      onChange: () => { this._syncCount(); this._onChange(); },
       onRemove: (s) => this.removeSlot(s.id),
     });
 
@@ -168,6 +174,14 @@ class FxRack {
     for (const s of this.slots) {
       s.setRemovable(!atMin);
     }
+    this._syncCount();
+  }
+
+  /** Update the "active / total" counter in the header. */
+  _syncCount() {
+    const total = this.slots.length;
+    const active = this.slots.filter(s => s.enabled).length;
+    this._countEl.textContent = `${active}/${total}`;
   }
 
   _initDragAndDrop() {

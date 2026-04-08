@@ -806,7 +806,7 @@ function markPresetDirty() {
 
 /** Refresh the API doc block with current parameter values. */
 function syncApiDoc() {
-  if (!fxRack || dom.apiDoc.hidden) return;
+  if (!fxRack || dom.apiDoc.classList.contains('collapsed')) return;
   const params = buildExtractParams();
   dom.apiEndpoint.textContent = '/extract?' + params.toString();
 
@@ -1318,11 +1318,9 @@ dom.param('format').onchange = () => {
 dom.autoDetectBtn.onclick = applyPresets;
 
 // Effects rack — dynamic slots, add/remove, drag & drop
-fxRack = new FxRack(
-  document.querySelector('.rack'),
-  document.querySelector('.rack-header'),
-  { onChange: () => { syncPresetUI(); requestExtract(); } },
-);
+fxRack = new FxRack(document.querySelector('.rack'), {
+  onChange: () => { syncPresetUI(); requestExtract(); },
+});
 
 // Presets — wire after fxRack is ready
 refreshPresetSelect();
@@ -1394,16 +1392,16 @@ registerDialog(dom.deletePresetOverlay);
 
 // API doc — toggle, expand, copy
 dom.apiToggleBtn.onclick = () => {
-  const show = dom.apiDoc.hidden;
-  dom.apiDoc.hidden = !show;
-  dom.apiToggleBtn.classList.toggle('active', show);
-  if (show) syncApiDoc();
+  const wasCollapsed = dom.apiDoc.classList.contains('collapsed');
+  dom.apiDoc.classList.toggle('collapsed');
+  dom.apiToggleBtn.classList.toggle('active', wasCollapsed);
+  if (wasCollapsed) syncApiDoc();
 };
 
 dom.apiExpandBtn.onclick = () => {
-  const show = dom.apiDetails.hidden;
-  dom.apiDetails.hidden = !show;
-  dom.apiExpandBtn.classList.toggle('expanded', show);
+  const wasCollapsed = dom.apiDetails.classList.contains('collapsed');
+  dom.apiDetails.classList.toggle('collapsed');
+  dom.apiExpandBtn.classList.toggle('expanded', wasCollapsed);
 };
 
 dom.apiCopyBtn.onclick = () => {

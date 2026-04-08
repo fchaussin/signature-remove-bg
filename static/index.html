@@ -62,14 +62,14 @@
       </div>
     </div>
 
-    <div class="api-doc" hidden>
+    <div class="api-doc collapsed">
       <div class="api-doc-header">
         <span class="api-doc-method">POST</span>
         <code class="api-doc-endpoint"></code>
         <button class="btn-api-copy" data-action="copy-curl" data-icon="clipboard" data-icon-size="12"></button>
         <button class="btn-api-expand" data-action="expand-api" data-icon="chevron-down" data-icon-size="14"></button>
       </div>
-      <div class="api-doc-details" hidden>
+      <div class="api-doc-details collapsed">
         <table class="api-doc-params">
           <thead><tr><th>Parameter</th><th>Value</th><th>Type</th><th>Range</th></tr></thead>
           <tbody></tbody>
@@ -85,18 +85,23 @@
       </div>
     </div>
 
-    <div class="rack-header">
-      <select class="rack-effect-select" aria-label="Add effect">
-        <option value="threshold" data-i18n="threshold.label">Luminosity threshold</option>
-        <option value="blue_tolerance" data-i18n="blue_tolerance.label">Blue tolerance</option>
-        <option value="contrast" data-i18n="contrast.label">Contrast</option>
-        <option value="smoothing" data-i18n="smoothing.label">Edge smoothing</option>
-      </select>
-      <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect">
-        <span data-icon="plus" data-icon-size="14"></span>
-      </button>
-    </div>
     <div class="rack" role="list" aria-label="Effects chain">
+      <div class="rack-header">
+        <span class="rack-header-label" data-i18n="rack.add_btn">Add FX</span>
+        <select class="rack-effect-select" aria-label="Add effect">
+          <option value="threshold" data-i18n="threshold.name">Luminosity threshold</option>
+          <option value="blue_tolerance" data-i18n="blue_tolerance.name">Blue tolerance</option>
+          <option value="contrast" data-i18n="contrast.name">Contrast</option>
+          <option value="smoothing" data-i18n="smoothing.name">Edge smoothing</option>
+        </select>
+        <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect">
+          <span data-icon="plus" data-icon-size="14"></span>
+        </button>
+        <span class="rack-count"></span>
+        <button class="btn-rack-collapse" data-action="toggle-rack" data-i18n-title="rack.collapse_title" title="Collapse effects">
+          <span data-icon="chevron-down" data-icon-size="14"></span>
+        </button>
+      </div>
       <!-- Slots are created dynamically by FxRack -->
     </div>
 
