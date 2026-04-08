@@ -123,10 +123,10 @@ class FxRack {
 
   /**
    * Return the current pipeline as an array of {effect, value} objects.
-   * Respects toggle state (disabled → offValue).
+   * Disabled slots are excluded — they must not influence extraction.
    */
   getSteps() {
-    return this.slots.map(s => ({ effect: s.effect, value: s.value }));
+    return this.slots.filter(s => s.enabled).map(s => ({ effect: s.effect, value: s.value }));
   }
 
   /**
