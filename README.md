@@ -54,22 +54,50 @@ After uploading, a settings panel appears with instant preview:
 | Mode | `Auto` (dark + blue), `Dark only`, `Blue only` |
 | Luminosity threshold | Sensitivity to dark pixels (50–250) |
 | Blue tolerance | Sensitivity to blue tints (20–200) |
+| Contrast | Boost ink opacity for faint scans (0–100) |
 | Edge smoothing | Anti-aliasing width on signature edges (0–100) |
 | Format | PNG or WebP |
 
-Each change triggers automatic re-extraction (debounced at 300 ms).
+Each change triggers automatic re-extraction (debounced at 300 ms). A progress bar animates at the bottom of the controls panel during extraction.
+
+### Effects rack
+
+The four effects (threshold, blue tolerance, contrast, smoothing) are displayed as a reorderable rack. Each effect has:
+
+- A **toggle** (checkbox) to enable/disable it
+- A **slider** for its value
+- A **drag handle** to reorder the processing pipeline
+
+The order in which effects are applied changes the final result. Drag & drop to experiment with different processing chains.
+
+### Auto-detect
+
+The **Auto** button analyzes the uploaded image and suggests optimal settings (mode, threshold, blue tolerance, smoothing, contrast). When analysis completes, the button pulses to signal readiness. Clicking it applies the detected values.
+
+### Presets
+
+Save your settings as named presets stored in `localStorage`:
+
+- **Save**: save current settings under a name (pre-fills current preset name for overwrite)
+- **Delete**: remove a saved preset (confirmation dialog)
+- **Select**: switch between presets instantly (reloads all settings)
+- **Default**: restores server defaults
+
+When you modify settings after loading a preset, the select shows "Save…" to indicate unsaved changes. The save button becomes active and the delete button is disabled until you save or re-select the preset.
+
+### API request helper
+
+The **`</>`** button in the preset bar toggles a Swagger-style API block showing the current extraction request:
+
+- Displays the live `POST /extract?…` endpoint with current parameter values
+- **Copy cURL** button to copy a ready-to-use `curl` command
+- **Expand** arrow to show a parameter detail table (name, value, type, range)
 
 ### Cropping
 
 ![Crop tool](static/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
-
-### Contrast enhancement
-
-![Contrast tool](static/screenshots/contrast.png)
-
-The **Enhance contrast** button opens a tool to darken the signature and boost its opacity, useful for faint scans.
 
 ### Actual-size zoom
 
@@ -135,8 +163,10 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | `threshold` | int | `220` | Luminosity threshold (50–250). Higher = more pixels captured |
 | `blue_tolerance` | int | `80` | Blue sensitivity (20–200) |
 | `smoothing` | int | `30` | Edge smoothing width (0–100). 0 = hard edges, higher = smoother anti-aliasing |
+| `contrast` | int | `0` | Contrast boost for faint ink (0–100). 0 = no change |
 | `format` | string | `png` | Output format: `png` or `webp` |
 | `output` | string | `binary` | Response type: `binary` (image blob) or `base64` (JSON with data URI) |
+| `order` | string | *(empty)* | Comma-separated effect order (e.g. `threshold,blue_tolerance,contrast,smoothing`). Empty = default order |
 
 **Body**: `multipart/form-data` with a `file` field containing the image.
 
@@ -174,11 +204,42 @@ curl -X POST "http://localhost:8000/extract?smoothing=60" \
 curl -X POST "http://localhost:8000/extract?format=webp" \
   -F "file=@scan.jpg" -o signature.webp
 
+# Boost contrast for faint ink
+curl -X POST "http://localhost:8000/extract?contrast=50" \
+  -F "file=@scan.jpg" -o signature.png
+
+# Custom effect order (smoothing before threshold)
+curl -X POST "http://localhost:8000/extract?order=smoothing,threshold,blue_tolerance,contrast" \
+  -F "file=@scan.jpg" -o signature.png
+
 # Base64 data URI (JSON response)
 curl -X POST "http://localhost:8000/extract?output=base64" \
   -F "file=@scan.jpg"
 # → {"base64":"data:image/png;base64,iVBORw0KGgo…"}
+
+# Auto-detect optimal settings
+curl -X POST "http://localhost:8000/analyze" \
+  -F "file=@scan.jpg"
+# → {"mode":"auto","threshold":195,"blue_tolerance":80,"smoothing":30,"contrast":20}
 ```
+
+### `POST /analyze` — Auto-detect optimal settings
+
+Analyzes an image and returns suggested extraction parameters.
+
+**Body**: `multipart/form-data` with a `file` field containing the image.
+
+**Response** (JSON):
+
+```json
+{"mode": "auto", "threshold": 195, "blue_tolerance": 80, "smoothing": 30, "contrast": 20}
+```
+
+| HTTP | Code | Description |
+|---|---|---|
+| 200 | `OK` | Success — JSON with suggested parameters |
+| 400 | `FILE_REQUIRED` / `INVALID_FILE` / `FILE_TOO_LARGE` / `IMAGE_TOO_LARGE` | Same validation as `/extract` |
+| 500 | `PROCESSING_FAILED` | Analysis error |
 
 **Health check**:
 
@@ -190,11 +251,14 @@ curl http://localhost:8000/health
 ## Project structure
 
 ```
-app.py                 # FastAPI backend + extraction logic
+app.py                 # FastAPI backend + extraction logic + auto-detect
 static/
   index.html           # HTML structure
   style.css            # Styles (CSS variables, responsive, a11y)
   app.js               # Frontend logic (OWASP-hardened)
+  fx-slot.js           # FxSlot — individual effect control (toggle + slider)
+  fx-rack.js           # FxRack — ordered effect collection + drag & drop
+  icons.js             # SVG icon provider (Lucide-style)
   i18n.js              # Internationalization module
   vendor/
     purify.min.js      # DOMPurify (HTML sanitization)
@@ -227,6 +291,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_THRESHOLD` | `220` | Default luminosity threshold (50–250) |
 | `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
 | `DEFAULT_SMOOTHING` | `30` | Default edge smoothing (0–100) |
+| `DEFAULT_CONTRAST` | `0` | Default contrast boost (0–100) |
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
@@ -237,7 +302,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 
 - **Runtime**: Python 3.12 / FastAPI / Uvicorn
 - **Dependencies**: Pillow, NumPy, python-multipart
-- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + gradient edge smoothing
+- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing, applied as a configurable pipeline
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)
 - **Output format**: PNG or WebP with alpha channel (transparent background), binary or base64 data URI
 - **Docker limits**: 128 MB RAM, 1 CPU (configurable in `docker-compose.yml`)
@@ -249,8 +314,10 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 - **Very faint signature**: raise threshold (`threshold=200–220`)
 - **Background noise captured**: lower threshold (`threshold=120–150`)
 - **Light blue pen**: lower `blue_tolerance` (`blue_tolerance=40–60`)
+- **Faint / washed-out signature**: increase `contrast` (`contrast=40–70`)
 - **Jagged / aliased edges**: increase `smoothing` (`smoothing=50–80`)
 - **Crisp, sharp edges needed**: set `smoothing=0` for binary mask
+- **Don't know where to start**: use the **Auto** button — it analyzes the image and suggests optimal values
 
 ## License
 
