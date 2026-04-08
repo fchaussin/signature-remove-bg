@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; script-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
   <meta name="description" content="Extract handwritten signatures from scanned documents. Lightweight, no ML, transparent PNG/WebP output.">
   <meta name="theme-color" content="#4a90d9">
   <title>Signature Remove Background</title>
@@ -20,82 +21,163 @@
   <!-- Editor -->
   <div id="editor" class="editor">
     <div class="controls">
-      <div class="field">
-        <label data-i18n="mode.label">Mode</label>
-        <select data-param="mode">
-          <option value="auto" data-i18n="mode.auto">Auto (dark + blue)</option>
-          <option value="dark" data-i18n="mode.dark">Dark only</option>
-          <option value="blue" data-i18n="mode.blue">Blue only</option>
+      <div class="col">
+        <div class="field-group">
+          <div class="field">
+            <label data-i18n="mode.label">Mode</label>
+            <select data-param="mode">
+              <option value="auto" data-i18n="mode.auto">Auto (dark + blue)</option>
+              <option value="dark" data-i18n="mode.dark">Dark only</option>
+              <option value="blue" data-i18n="mode.blue">Blue only</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="format.label">Format</label>
+            <select data-param="format">
+              <option value="png">PNG</option>
+              <option value="webp">WebP</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="field-group preset-group">
+          <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
+          <select class="preset-select" data-param="preset" aria-label="Presets">
+            <option value="" data-i18n="preset.default">Default</option>
+          </select>
+          <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" data-icon="save" data-icon-size="14"></button>
+          <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" data-icon="close" data-icon-size="14"></button>
+          <button class="btn-preset btn-api-toggle" data-action="toggle-api" title="API" data-icon="code" data-icon-size="14"></button>
+        </div>
+        <div class="field-group render-group">
+          <label class="live-toggle" data-i18n-title="render.live_title" title="Live preview (slow on large images)">
+            <input type="checkbox" checked data-action="toggle-live">
+            <span class="live-toggle-label" data-i18n="render.live">Live</span>
+          </label>
+          <button class="btn-render" data-action="render" data-i18n-title="render.btn_title" title="Render (Ctrl+Enter)" hidden>
+            <span data-icon="play" data-icon-size="14"></span> <span data-i18n="render.btn">Render</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="api-doc collapsed">
+      <div class="api-doc-header">
+        <span class="api-doc-method">POST</span>
+        <code class="api-doc-endpoint"></code>
+        <button class="btn-api-copy" data-action="copy-curl" data-icon="clipboard" data-icon-size="12"></button>
+        <button class="btn-api-expand" data-action="expand-api" data-icon="chevron-down" data-icon-size="14"></button>
+      </div>
+      <div class="api-doc-details collapsed">
+        <table class="api-doc-params">
+          <thead><tr><th>Parameter</th><th>Value</th><th>Type</th><th>Range</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="api-doc-body">
+          <span class="api-doc-body-label">Body</span>
+          <code>multipart/form-data — file: &lt;image&gt;</code>
+        </div>
+        <div class="api-doc-response">
+          <span class="api-doc-body-label">Response</span>
+          <code class="api-doc-response-mime"></code>
+        </div>
+      </div>
+    </div>
+
+    <div class="rack" role="list" aria-label="Effects chain">
+      <div class="rack-header">
+        <span class="rack-header-label" data-i18n="rack.add_btn">Add FX</span>
+        <select class="rack-effect-select" aria-label="Add effect">
+          <option value="contrast" data-i18n="contrast.name">Contrast</option>
+          <option value="smoothing" data-i18n="smoothing.name">Edge smoothing</option>
+          <option value="threshold" data-i18n="threshold.name">Luminosity threshold</option>
+          <option value="blue_tolerance" data-i18n="blue_tolerance.name">Blue tolerance</option>
         </select>
+        <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect">
+          <span data-icon="plus" data-icon-size="14"></span>
+        </button>
+        <span class="rack-count"></span>
+        <button class="btn-rack-collapse" data-action="toggle-rack" data-i18n-title="rack.collapse_title" title="Collapse effects">
+          <span data-icon="chevron-down" data-icon-size="14"></span>
+        </button>
       </div>
-      <div class="field">
-        <label><span data-i18n="threshold.label">Luminosity threshold:</span> <span data-display="threshold">220</span></label>
-        <input type="range" data-param="threshold" min="50" max="250" value="220">
-      </div>
-      <div class="field">
-        <label><span data-i18n="blue_tolerance.label">Blue tolerance:</span> <span data-display="blue_tolerance">80</span></label>
-        <input type="range" data-param="blue_tolerance" min="20" max="200" value="80">
-      </div>
-      <div class="field">
-        <label><span data-i18n="smoothing.label">Edge smoothing:</span> <span data-display="smoothing">30</span></label>
-        <input type="range" data-param="smoothing" min="0" max="100" value="30">
-      </div>
-      <div class="field">
-        <label data-i18n="format.label">Format</label>
-        <select data-param="format">
-          <option value="png">PNG</option>
-          <option value="webp">WebP</option>
-        </select>
-      </div>
+      <!-- Slots are created dynamically by FxRack -->
     </div>
 
     <div class="previews">
       <div class="panel" data-role="original">
-        <div class="panel-label"><span data-i18n="panel.original">Original</span> <span class="res-info" style="font-size:.75rem;color:#999"></span></div>
+        <div class="panel-label">
+          <span data-i18n="panel.original">Original</span> <span class="res-info" style="font-size:.75rem;color:#999"></span>
+          <span class="panel-tools">
+            <button class="panel-tool-btn" data-action="zoom" aria-label="Zoom" title="Zoom 1:1" data-icon="search" data-icon-size="14"></button>
+          </span>
+        </div>
         <img class="preview-img" alt="Original image">
         <div class="res-hint" style="display:none"></div>
         <div class="actions">
-          <button class="btn-secondary" data-action="crop" data-i18n="btn.crop">Crop</button>
+          <button class="btn-secondary" data-action="crop"><span data-icon="crop" data-icon-size="14"></span> <span data-i18n="btn.crop">Crop</span></button>
         </div>
       </div>
       <div class="panel" data-role="extracted">
-        <div class="panel-label"><span data-i18n="panel.extracted">Extracted signature</span> <span class="status" aria-live="polite"></span></div>
-        <div class="preview-bg" style="background:#fff">
-          <img class="preview-img" alt="Extracted signature">
+        <div class="panel-label">
+          <span data-i18n="panel.extracted">Extracted signature</span> <span class="status" aria-live="polite"></span>
+          <span class="progress-wrap" aria-hidden="true"><span class="progress-bar"></span></span>
+          <span class="panel-tools">
+            <label class="compare-toggle" title="Before / After">
+              <input type="checkbox" checked data-action="toggle-compare">
+              <span class="compare-toggle-icon" data-icon="columns" data-icon-size="16"></span>
+            </label>
+            <button class="panel-tool-btn" data-action="zoom" aria-label="Zoom" title="Zoom 1:1" data-icon="search" data-icon-size="14"></button>
+          </span>
+        </div>
+        <div class="compare-slider">
+          <div class="preview-bg" style="background:repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50%/16px 16px">
+            <img class="preview-img" alt="Extracted signature">
+          </div>
+          <div class="compare-before">
+            <img class="compare-before-img" alt="Original">
+          </div>
+          <div class="compare-handle" aria-label="Comparison slider" role="slider" tabindex="0">
+            <div class="compare-line"></div>
+            <div class="compare-knob" data-icon="arrows-h" data-icon-size="14"></div>
+          </div>
         </div>
         <div class="bg-picker" role="group" aria-label="Background color">
           <span data-i18n="bg.label">Background:</span>
-          <div class="bg-swatch active" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
-          <div class="bg-swatch" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
+          <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
+          <div class="bg-swatch active" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
           <div class="bg-swatch" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
           <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
         </div>
         <div class="actions">
-          <button class="btn-secondary" data-action="contrast" data-i18n="btn.contrast">Enhance contrast</button>
-          <button data-action="download" data-i18n="btn.download">Download</button>
+          <button data-action="download"><span data-icon="download" data-icon-size="14"></span> <span data-i18n="btn.download">Download</span></button>
+          <button class="btn-secondary" data-action="base64"><span data-icon="code" data-icon-size="14"></span> <span data-i18n="btn.base64">Base64</span></button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Zoom popup -->
-  <div id="zoom" class="overlay overlay--dark" role="dialog" aria-modal="true" aria-label="Image zoom">
+  <dialog id="zoom" class="dialog dialog--dark" aria-label="Image zoom">
     <div class="zoom-viewport">
-      <button class="zoom-close" aria-label="Close">&times;</button>
+      <button class="zoom-close" aria-label="Close" data-icon="close" data-icon-size="18"></button>
       <img class="zoom-img" alt="Zoomed view">
-      <div class="zoom-hint"></div>
-      <div class="zoom-bg-picker" role="group" aria-label="Background color">
-        <span data-i18n="bg.label">Background:</span>
-        <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
-        <div class="bg-swatch active" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
-        <div class="bg-swatch" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
-        <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
+      <div class="zoom-bar">
+        <div class="zoom-hint"></div>
+        <div class="zoom-bg-picker" role="group" aria-label="Background color">
+          <span data-i18n="bg.label">Background:</span>
+          <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
+          <div class="bg-swatch active" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
+          <div class="bg-swatch" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
+          <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
+        </div>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Crop popup -->
-  <div id="crop" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Crop tool">
+  <dialog id="crop" class="dialog dialog--dim" aria-label="Crop tool">
     <div class="popup">
       <h2 data-i18n="crop.title">Crop the original</h2>
       <div class="crop-area">
@@ -114,37 +196,71 @@
         <button data-action="apply" data-i18n="btn.apply">Apply</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
-  <!-- Contrast popup -->
-  <div id="contrast" class="overlay overlay--dim" role="dialog" aria-modal="true" aria-label="Contrast tool">
+  <!-- Base64 popup -->
+  <dialog id="base64" class="dialog dialog--dim" aria-label="Base64 output">
     <div class="popup">
-      <h2 data-i18n="contrast.title">Enhance contrast</h2>
-      <div class="tool-preview" style="background:#333">
-        <canvas aria-label="Contrast preview"></canvas>
+      <h2 data-i18n="base64.title">Base64 Export</h2>
+      <div class="field">
+        <label data-i18n="base64.format_label">Output format</label>
+        <select data-param="base64-format">
+          <option value="txt" selected>Plain text — Base64 value</option>
+          <option value="uri">Data URI — data:content/type;base64</option>
+          <option value="css_background_image">CSS Background Image — background-image:url()</option>
+          <option value="html_favicon">HTML Favicon — &lt;link rel=icon /&gt;</option>
+          <option value="html_hyperlink">HTML Hyperlink — &lt;a&gt;&lt;/a&gt;</option>
+          <option value="html_img">HTML Image — &lt;img /&gt;</option>
+          <option value="html_iframe">HTML Iframe — &lt;iframe&gt;&lt;/iframe&gt;</option>
+          <option value="javascript_image">JavaScript Image — new Image()</option>
+          <option value="javascript_popup">JavaScript Popup — window.open()</option>
+          <option value="json">JSON — {image:{mime,data}}</option>
+          <option value="xml">XML — &lt;image&gt;&lt;/image&gt;</option>
+        </select>
       </div>
-      <div class="tool-controls">
-        <div class="field">
-          <label><span data-i18n="contrast.intensity">Intensity:</span> <span data-display="intensity">15</span>%</label>
-          <input type="range" data-param="intensity" min="0" max="100" value="15">
-        </div>
-        <div class="bg-picker" role="group" aria-label="Background color">
-          <span data-i18n="bg.label">Background:</span>
-          <div class="bg-swatch" data-bg="white" role="button" tabindex="0" aria-label="White" data-i18n-title="bg.white" title="White"></div>
-          <div class="bg-swatch" data-bg="checker" role="button" tabindex="0" aria-label="Checker" data-i18n-title="bg.checker" title="Checker (transparency)"></div>
-          <div class="bg-swatch active" data-bg="dark" role="button" tabindex="0" aria-label="Dark" data-i18n-title="bg.dark" title="Dark"></div>
-          <div class="bg-swatch" data-bg="blue" role="button" tabindex="0" aria-label="Light blue" data-i18n-title="bg.blue" title="Light blue"></div>
-        </div>
+      <textarea class="base64-textarea" readonly aria-label="Base64 output"></textarea>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button data-action="copy" data-i18n="btn.copy">Copy</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Save preset popup -->
+  <dialog id="save-preset" class="dialog dialog--dim" aria-label="Save preset">
+    <div class="popup">
+      <h2 data-i18n="preset.save_title">Save preset</h2>
+      <div class="field">
+        <label data-i18n="preset.name_label">Preset name</label>
+        <input type="text" class="preset-name-input" maxlength="40" data-i18n-title="preset.name_placeholder" placeholder="My preset">
       </div>
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
-        <button data-action="apply" data-i18n="btn.apply">Apply</button>
+        <button data-action="confirm-save" data-i18n="preset.save_btn">Save</button>
       </div>
     </div>
-  </div>
+  </dialog>
+
+  <!-- Delete preset popup -->
+  <dialog id="delete-preset" class="dialog dialog--dim" aria-label="Delete preset">
+    <div class="popup">
+      <h2 data-i18n="preset.delete_title">Delete preset</h2>
+      <p class="delete-preset-msg"></p>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button class="btn-danger" data-action="confirm-delete" data-i18n="preset.delete_btn">Delete</button>
+      </div>
+    </div>
+  </dialog>
 
   <script src="/static/vendor/purify.min.js"></script>
+  <script src="/static/icons.js"></script>
   <script src="/static/i18n.js"></script>
+  <script src="/static/constants.js"></script>
+  <script src="/static/ui.js"></script>
+  <script src="/static/utils.js"></script>
+  <script src="/static/fx-slot.js"></script>
+  <script src="/static/fx-rack.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

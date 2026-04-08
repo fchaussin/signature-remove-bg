@@ -37,9 +37,9 @@ Open `http://localhost:8000` in a browser.
 ![Upload zone](static/screenshots/dropzone.png)
 
 Three import methods:
-- **Drag & drop** a scan, capture or image onto the upload zone
-- **Click** the zone to open the file picker
-- **Ctrl+V** anywhere to paste a screenshot from the clipboard
+1. **Drag & drop** a scan, capture or image onto the upload zone
+2. **Click** the zone to open the file picker
+3. **Ctrl+V** anywhere to paste a screenshot from the clipboard
 
 The upload zone stays visible at the top of the page so you can load a new image at any time.
 
@@ -54,21 +54,62 @@ After uploading, a settings panel appears with instant preview:
 | Mode | `Auto` (dark + blue), `Dark only`, `Blue only` |
 | Luminosity threshold | Sensitivity to dark pixels (50–250) |
 | Blue tolerance | Sensitivity to blue tints (20–200) |
+| Contrast | Boost ink opacity for faint scans (0–100) |
+| Edge smoothing | Anti-aliasing width on signature edges (0–100) |
 | Format | PNG or WebP |
 
-Each change triggers automatic re-extraction (debounced at 300 ms).
+Each change triggers automatic re-extraction (debounced at 300 ms) in live mode. A progress bar animates at the bottom of the controls panel during extraction.
+
+### Render mode
+
+Three render modes control when extraction runs:
+
+| Mode | Behavior |
+|---|---|
+| **Live** | Auto re-extract on every parameter change (debounced). Best for small images |
+| **Manual** | Extract only when clicking the **Render** button or pressing `Ctrl+Enter`. Recommended for large images or shared servers |
+| **Auto** (default) | Starts in live mode. Automatically switches to manual when the image exceeds a pixel threshold (`AUTO_MANUAL_PIXELS`) |
+
+A **Live** toggle in the controls bar lets the user switch between live and manual at any time. In manual mode, the extracted preview dims to indicate it's outdated, and the Render button pulses until clicked.
+
+### Effects rack
+
+The four effects (threshold, blue tolerance, contrast, smoothing) are displayed as a reorderable rack. Each effect has:
+
+- A **toggle** (checkbox) to enable/disable it
+- A **slider** for its value
+- A **drag handle** to reorder the processing pipeline
+
+The order in which effects are applied changes the final result. Drag & drop to experiment with different processing chains.
+
+### Auto-detect
+
+The **Auto** button analyzes the uploaded image and suggests optimal settings (mode, threshold, blue tolerance, smoothing, contrast). When analysis completes, the button pulses to signal readiness. Clicking it applies the detected values.
+
+### Presets
+
+Save your settings as named presets stored in `localStorage`:
+
+- **Save**: save current settings under a name (pre-fills current preset name for overwrite)
+- **Delete**: remove a saved preset (confirmation dialog)
+- **Select**: switch between presets instantly (reloads all settings)
+- **Default**: restores server defaults
+
+When you modify settings after loading a preset, the select shows "Save…" to indicate unsaved changes. The save button becomes active and the delete button is disabled until you save or re-select the preset.
+
+### API request helper
+
+The **`</>`** button in the preset bar toggles a Swagger-style API block showing the current extraction request:
+
+- Displays the live `POST /extract?…` endpoint with current parameter values
+- **Copy cURL** button to copy a ready-to-use `curl` command
+- **Expand** arrow to show a parameter detail table (name, value, type, range)
 
 ### Cropping
 
 ![Crop tool](static/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
-
-### Contrast enhancement
-
-![Contrast tool](static/screenshots/contrast.png)
-
-The **Enhance contrast** button opens a tool to darken the signature and boost its opacity, useful for faint scans.
 
 ### Actual-size zoom
 
@@ -85,9 +126,28 @@ The preview area displays the extracted signature. A background color picker let
 - **Dark** — for verifying light signatures
 - **Light blue** — simulates a colored document background
 
-### Download
+### Download & Base64 export
 
-The **Download** button saves the extracted signature in the chosen format.
+The **Download** button saves the extracted signature in the chosen format. The **Base64** button opens a popup with:
+
+- A **format selector** to choose the output template:
+
+| Format | Output |
+|---|---|
+| Plain text | Raw base64 string |
+| Data URI | `data:image/png;base64,…` |
+| CSS Background Image | `background-image: url(…);` |
+| HTML Favicon | `<link rel="icon" … />` |
+| HTML Hyperlink | `<a href="…">Download</a>` |
+| HTML Image | `<img src="…" />` |
+| HTML Iframe | `<iframe src="…"></iframe>` |
+| JavaScript Image | `new Image()` + `.src` |
+| JavaScript Popup | `window.open("…")` |
+| JSON | `{"image":{"mime":"…","data":"…"}}` |
+| XML | `<image mime="…">…</image>` |
+
+- A **read-only text area** with the formatted output
+- A **Copy** button (uses the Clipboard API)
 
 ### Resolution warnings
 
@@ -112,9 +172,9 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `mode` | string | `auto` | `auto` (dark + blue), `dark` (dark only), `blue` (blue only) |
-| `threshold` | int | `220` | Luminosity threshold (50–250). Higher = more pixels captured |
-| `blue_tolerance` | int | `80` | Blue sensitivity (20–200) |
+| `steps` | string | *(empty)* | Pipeline steps: `effect:value,effect:value,...` (e.g. `threshold:200,smoothing:30`). Same effect may appear multiple times. Empty = server defaults |
 | `format` | string | `png` | Output format: `png` or `webp` |
+| `output` | string | `binary` | Response type: `binary` (image blob) or `base64` (JSON with data URI) |
 
 **Body**: `multipart/form-data` with a `file` field containing the image.
 
@@ -122,10 +182,10 @@ Translations are stored in `static/lang/*.json`. Adding a new language only requ
 
 | HTTP | Code | Description |
 |---|---|---|
-| 200 | `OK` | Success (image blob returned) |
+| 200 | `OK` | Success — image blob (`output=binary`) or JSON `{"base64":"data:image/…;base64,…"}` (`output=base64`) |
 | 400 | `FILE_REQUIRED` | No file provided |
 | 400 | `INVALID_FILE` | Unreadable or invalid image |
-| 400 | `FILE_TOO_LARGE` | File exceeds size limit |
+| 400 | `FILE_TOO_LARGE` | File exceeds size limit (or base64 output exceeds `MAX_BASE64_MB`) |
 | 400 | `IMAGE_TOO_LARGE` | Image dimensions exceed limit |
 | 500 | `PROCESSING_FAILED` | Unexpected extraction error |
 
@@ -140,14 +200,54 @@ curl -X POST "http://localhost:8000/extract" \
 curl -X POST "http://localhost:8000/extract?mode=blue" \
   -F "file=@scan.jpg" -o signature.png
 
-# Adjusted threshold for grayish scans
-curl -X POST "http://localhost:8000/extract?threshold=200" \
+# Custom pipeline (threshold + smoothing)
+curl -X POST "http://localhost:8000/extract?steps=threshold:200,smoothing:60" \
+  -F "file=@scan.jpg" -o signature.png
+
+# Full pipeline with custom order (smoothing before threshold)
+curl -X POST "http://localhost:8000/extract?steps=smoothing:30,threshold:200,blue_tolerance:80,contrast:50" \
   -F "file=@scan.jpg" -o signature.png
 
 # WebP output
 curl -X POST "http://localhost:8000/extract?format=webp" \
   -F "file=@scan.jpg" -o signature.webp
+
+# Base64 data URI (JSON response)
+curl -X POST "http://localhost:8000/extract?output=base64" \
+  -F "file=@scan.jpg"
+# → {"base64":"data:image/png;base64,iVBORw0KGgo…"}
+
+# Auto-detect optimal settings
+curl -X POST "http://localhost:8000/analyze" \
+  -F "file=@scan.jpg"
+# → {"mode":"auto","steps":[{"effect":"threshold","value":195},{"effect":"blue_tolerance","value":80},...]}
 ```
+
+### `POST /analyze` — Auto-detect optimal settings
+
+Analyzes an image and returns suggested extraction parameters.
+
+**Body**: `multipart/form-data` with a `file` field containing the image.
+
+**Response** (JSON):
+
+```json
+{
+  "mode": "auto",
+  "steps": [
+    {"effect": "threshold", "value": 195},
+    {"effect": "blue_tolerance", "value": 80},
+    {"effect": "contrast", "value": 20},
+    {"effect": "smoothing", "value": 30}
+  ]
+}
+```
+
+| HTTP | Code | Description |
+|---|---|---|
+| 200 | `OK` | Success — JSON with suggested parameters |
+| 400 | `FILE_REQUIRED` / `INVALID_FILE` / `FILE_TOO_LARGE` / `IMAGE_TOO_LARGE` | Same validation as `/extract` |
+| 500 | `PROCESSING_FAILED` | Analysis error |
 
 **Health check**:
 
@@ -159,11 +259,17 @@ curl http://localhost:8000/health
 ## Project structure
 
 ```
-app.py                 # FastAPI backend + extraction logic
+app.py                 # FastAPI backend + extraction logic + auto-detect
 static/
   index.html           # HTML structure
   style.css            # Styles (CSS variables, responsive, a11y)
-  app.js               # Frontend logic (OWASP-hardened)
+  constants.js         # Shared constants (validation whitelists, ranges, limits)
+  utils.js             # Pure utility functions (debounce, XHR, validation, base64)
+  ui.js                # Reusable UI components (dialog, bgPicker, compareSlider)
+  app.js               # App state + orchestration (upload, extract, presets)
+  fx-slot.js           # FxSlot — individual effect control (toggle + slider)
+  fx-rack.js           # FxRack — ordered effect collection + drag & drop
+  icons.js             # SVG icon provider (Lucide-style)
   i18n.js              # Internationalization module
   vendor/
     purify.min.js      # DOMPurify (HTML sanitization)
@@ -195,18 +301,25 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_MODE` | `auto` | Default extraction mode (`auto`, `dark`, `blue`) |
 | `DEFAULT_THRESHOLD` | `220` | Default luminosity threshold (50–250) |
 | `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
+| `DEFAULT_SMOOTHING` | `30` | Default edge smoothing (0–100) |
+| `DEFAULT_CONTRAST` | `0` | Default contrast boost (0–100) |
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
+| `RENDER_MODE` | `auto` | Render mode: `live`, `manual`, or `auto` (switches based on image size) |
+| `AUTO_MANUAL_PIXELS` | `4000000` | Pixel threshold for auto-switch to manual mode (4 Mpx default) |
+| `ANALYZE_ON_UPLOAD` | `true` | Call `/analyze` on each upload to suggest optimal presets via the Auto button |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
+| `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB |
 | `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
+| `MAX_CONCURRENT_OPS` | `4` | Maximum concurrent CPU-heavy requests (extract/analyze) |
 
 ## Technical specifications
 
 - **Runtime**: Python 3.12 / FastAPI / Uvicorn
 - **Dependencies**: Pillow, NumPy, python-multipart
-- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection
+- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing, applied as a configurable pipeline
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)
-- **Output format**: PNG or WebP with alpha channel (transparent background)
+- **Output format**: PNG or WebP with alpha channel (transparent background), binary or base64 data URI
 - **Docker limits**: 128 MB RAM, 1 CPU (configurable in `docker-compose.yml`)
 
 ## Parameter tuning
@@ -216,6 +329,10 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 - **Very faint signature**: raise threshold (`threshold=200–220`)
 - **Background noise captured**: lower threshold (`threshold=120–150`)
 - **Light blue pen**: lower `blue_tolerance` (`blue_tolerance=40–60`)
+- **Faint / washed-out signature**: increase `contrast` (`contrast=40–70`)
+- **Jagged / aliased edges**: increase `smoothing` (`smoothing=50–80`)
+- **Crisp, sharp edges needed**: set `smoothing=0` for binary mask
+- **Don't know where to start**: use the **Auto** button — it analyzes the image and suggests optimal values
 
 ## License
 
