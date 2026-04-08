@@ -145,7 +145,7 @@ button {
 .field-group {
   display: flex;
   gap: 1rem;
-  align-items: end;
+  align-items: center;
   flex-wrap: wrap;
 }
 
@@ -577,6 +577,12 @@ input[type=range] {
   align-items: center;
   gap: .5rem;
   margin-top: .3rem;
+}
+
+.api-doc-option {
+    display: flex;
+    gap: .4em;
+    margin-top: .3em;
 }
 
 .api-doc-body-label {
