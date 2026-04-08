@@ -377,6 +377,13 @@ async function extractSignature() {
     dom.extractedImg.src = safeObjectURL('extracted', lastExtractedBlob);
     dom.statusLabel.textContent = '';
     setBusy(false);
+
+    // Show warning if the source image had an alpha channel
+    if (res.headers && res.headers.getResponseHeader('X-Alpha-Composited')) {
+      dom.resHint.className = 'res-hint warn-alpha';
+      dom.resHint.textContent = t('hint.alpha_composited');
+      dom.resHint.style.display = 'block';
+    }
   } catch (err) {
     if (err.name === 'AbortError') return; // superseded by a newer request
     dom.statusLabel.textContent = t('error.NETWORK');

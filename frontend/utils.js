@@ -105,14 +105,15 @@ function postWithProgress(url, formData, { signal, onProgress, timeout = 120_000
     xhr.addEventListener('load', async () => {
       const ok = xhr.status >= 200 && xhr.status < 300;
       const ct = xhr.getResponseHeader('Content-Type') || '';
+      const headers = { getResponseHeader: h => xhr.getResponseHeader(h) };
       if (ct.includes('application/json')) {
         // responseType is 'blob', so parse JSON from the blob
         const text = await xhr.response.text();
         let json;
         try { json = JSON.parse(text); } catch { json = {}; }
-        resolve({ ok, status: xhr.status, json });
+        resolve({ ok, status: xhr.status, json, headers });
       } else {
-        resolve({ ok, status: xhr.status, blob: xhr.response });
+        resolve({ ok, status: xhr.status, blob: xhr.response, headers });
       }
     });
 

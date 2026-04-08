@@ -237,6 +237,15 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 #  5. Image analysis helpers
 # ---------------------------------------------------------------------------
 
+def _flatten_alpha(image: Image.Image) -> tuple[Image.Image, bool]:
+    """Composite onto white if the image has an alpha channel. Returns (image, had_alpha)."""
+    if image.mode in ("RGBA", "LA", "PA"):
+        bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+        bg.paste(image, mask=image.split()[-1])
+        return bg.convert("RGB"), True
+    return image, False
+
+
 def _rgb_channels(image: Image.Image) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Convert a PIL image to int16 R, G, B channel arrays."""
     pixels = np.array(image.convert("RGB"), dtype=np.int16)
@@ -328,13 +337,15 @@ def extract_signature(
     image: Image.Image,
     mode: str = MODE_AUTO,
     steps: list[tuple[str, int]] | None = None,
-) -> Image.Image:
+) -> tuple[Image.Image, bool]:
     """
     Extract signature pixels and make the background transparent.
 
     *steps* is an ordered list of ``(effect_name, value)`` tuples.
     The same effect may appear multiple times.
     Each step reads/modifies the alpha channel of the result.
+
+    Returns ``(result_image, had_alpha)``.
     """
     if steps is None:
         steps = [
@@ -344,6 +355,7 @@ def extract_signature(
             ("smoothing", DEFAULT_SMOOTHING),
         ]
 
+    image, had_alpha = _flatten_alpha(image)
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
 
@@ -358,7 +370,7 @@ def extract_signature(
             alpha = fn(alpha=alpha, **ctx, **{effect_name: value})
 
     result[:, :, 3] = np.clip(alpha, 0, 255).astype(np.uint8)
-    return Image.fromarray(result)
+    return Image.fromarray(result), had_alpha
 
 
 # ---------------------------------------------------------------------------
@@ -493,6 +505,7 @@ def detect_presets(image: Image.Image) -> dict:
 
     Returns ``{mode, steps: [{effect, value}, ...]}``.
     """
+    image, _ = _flatten_alpha(image)
     r, g, b = _rgb_channels(image)
     lum = _luminosity(r, g, b)
 
@@ -689,37 +702,42 @@ async def extract(
     parsed_steps = _parse_steps(steps)
 
     def _extract_and_encode():
-        result = extract_signature(image, mode=mode, steps=parsed_steps)
+        result, had_alpha = extract_signature(image, mode=mode, steps=parsed_steps)
         buf = io.BytesIO()
         result.save(buf, format=format.upper(), optimize=True)
         buf.seek(0)
-        return buf
+        return buf, had_alpha
 
     async with _processing_semaphore:
         try:
-            buf = await asyncio.to_thread(_extract_and_encode)
+            buf, had_alpha = await asyncio.to_thread(_extract_and_encode)
         except Exception:
             logger.exception("Extraction failed for %s", safe_name)
             return JSONResponse({"code": "PROCESSING_FAILED"}, status_code=500)
 
     media_type = "image/png" if format == "png" else "image/webp"
+    extra_headers = {}
+    if had_alpha:
+        extra_headers["X-Alpha-Composited"] = "true"
 
     if output == "base64":
         raw = buf.read()
-        if len(raw) > MAX_BASE64_BYTES:            # A04 — reject oversized base64 payloads
+        if len(raw) > MAX_BASE64_BYTES:
             logger.warning("Base64 output too large (%d bytes) for %s", len(raw), safe_name)
             return JSONResponse({"code": "FILE_TOO_LARGE"}, status_code=400)
         b64 = base64.b64encode(raw).decode("ascii")
         data_uri = f"data:{media_type};base64,{b64}"
         return JSONResponse({"base64": data_uri}, headers={
             "X-Response-Code": "OK",
-            "Cache-Control": "no-store",           # A04 — prevent caching of image data
+            "Cache-Control": "no-store",
+            **extra_headers,
         })
 
     return StreamingResponse(buf, media_type=media_type, headers={
         "Content-Disposition": f"inline; filename=signature.{format}",
         "X-Response-Code": "OK",
-        "Cache-Control": "no-store",                  # A04 — prevent caching of extracted images
+        "Cache-Control": "no-store",
+        **extra_headers,
     })
 
 
