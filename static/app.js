@@ -187,6 +187,7 @@ const dom = {
   cropOverlay:     document.getElementById('crop'),
   base64Overlay:   document.getElementById('base64'),
   savePresetOverlay: document.getElementById('save-preset'),
+  deletePresetOverlay: document.getElementById('delete-preset'),
 
   // Dynamic lookups — whitelisted to prevent selector injection (OWASP A03)
   _VALID_PARAMS: new Set(['mode', 'format']),
@@ -284,6 +285,8 @@ dom.savePresetBtn  = dom.editor.querySelector('[data-action="save-preset"]');
 dom.deletePresetBtn = dom.editor.querySelector('[data-action="delete-preset"]');
 dom.presetNameInput   = dom.savePresetOverlay.querySelector('.preset-name-input');
 dom.confirmSaveBtn    = dom.savePresetOverlay.querySelector('[data-action="confirm-save"]');
+dom.deletePresetMsg   = dom.deletePresetOverlay.querySelector('.delete-preset-msg');
+dom.confirmDeleteBtn  = dom.deletePresetOverlay.querySelector('[data-action="confirm-delete"]');
 
 
 /* ===================================================================
@@ -318,6 +321,11 @@ let base64DataUri = '';
 
 // Auto-detect
 let pendingPresets = null;  // presets from /analyze, awaiting user click
+
+// Presets — dirty state
+let presetSnapshot = null;  // serialized query string when a preset was loaded (null = none)
+let activePresetName = '';  // name of the currently loaded preset ('' = Default)
+let defaultPresetQs = null; // snapshot of server defaults (captured after /config loads)
 
 // Rack — initialized in Bootstrap
 let fxRack = null;
@@ -588,6 +596,9 @@ function applyPresets() {
     if (slot) slot.setValue(value);
   }
 
+  // Auto-detect always imposes dirty state
+  markPresetDirty();
+
   // Re-extract with the new parameters (presets stay available until next upload)
   extractSignature();
 }
@@ -711,11 +722,14 @@ function refreshPresetSelect() {
 /** Save the current state as a named preset. */
 function savePreset(name) {
   if (!name) return;
+  const qs = serializePreset();
   const map = loadPresetsMap();
-  map[name] = serializePreset();
+  map[name] = qs;
   savePresetsMap(map);
+  activePresetName = name;
+  presetSnapshot = qs;
   refreshPresetSelect();
-  dom.presetSelect.value = name;
+  syncPresetUI();
 }
 
 /** Delete a preset by name. */
@@ -724,7 +738,67 @@ function deletePreset(name) {
   const map = loadPresetsMap();
   delete map[name];
   savePresetsMap(map);
+  activePresetName = '';
+  presetSnapshot = null;
   refreshPresetSelect();
+  syncPresetUI();
+}
+
+/* ---- Preset dirty-state tracking ---- */
+
+/**
+ * Compare current form state against the snapshot taken when a preset was loaded.
+ * Returns true if settings have changed (or no preset is loaded but settings were modified).
+ */
+function isPresetDirty() {
+  if (!fxRack) return false;
+  if (!presetSnapshot) return false; // no preset loaded, no snapshot → clean
+  return serializePreset() !== presetSnapshot;
+}
+
+/**
+ * Update the preset select label and button states based on dirty state.
+ * Called after every parameter change and after preset load/save/delete.
+ */
+function syncPresetUI() {
+  const dirty = isPresetDirty();
+  const hasPreset = activePresetName !== '';
+  const dirtyOpt = dom.presetSelect.querySelector('[data-dirty]');
+
+  if (dirty) {
+    // Show "Enregistrer..." in the select
+    if (!dirtyOpt) {
+      const opt = document.createElement('option');
+      opt.dataset.dirty = '1';
+      opt.value = '__dirty__';
+      opt.textContent = t('preset.unsaved');
+      dom.presetSelect.prepend(opt);
+    }
+    dom.presetSelect.value = '__dirty__';
+  } else {
+    // Remove dirty option if present
+    if (dirtyOpt) dirtyOpt.remove();
+    dom.presetSelect.value = activePresetName;
+  }
+
+  // Save button: active only when dirty
+  dom.savePresetBtn.disabled = !dirty;
+
+  // Delete button: active only when a preset is loaded AND state is clean
+  dom.deletePresetBtn.disabled = !(hasPreset && !dirty);
+}
+
+/**
+ * Mark the current preset as dirty (e.g. after Auto-detect applies values).
+ */
+function markPresetDirty() {
+  if (!presetSnapshot) {
+    // No preset was loaded — create a snapshot of the state *before* the change
+    // so that isPresetDirty() returns true on next check.
+    // We use a sentinel value that can never match serializePreset().
+    presetSnapshot = '__force_dirty__';
+  }
+  syncPresetUI();
 }
 
 
@@ -1143,9 +1217,13 @@ document.addEventListener('paste', e => {
 // Global controls (outside rack)
 dom.param('mode').onchange = () => {
   syncBlueSlotVisibility();
+  syncPresetUI();
   debouncedExtract();
 };
-dom.param('format').onchange = debouncedExtract;
+dom.param('format').onchange = () => {
+  syncPresetUI();
+  debouncedExtract();
+};
 
 // Auto-detect button
 dom.autoDetectBtn.onclick = applyPresets;
@@ -1153,24 +1231,37 @@ dom.autoDetectBtn.onclick = applyPresets;
 // Effects rack (FxRack scans DOM slots and wires toggles + sliders + drag & drop)
 fxRack = new FxRack(document.querySelector('.rack'), {
   defaults: FX_DEFAULTS,
-  onChange: debouncedExtract,
+  onChange: () => { syncPresetUI(); debouncedExtract(); },
 });
 
 // Presets — wire after fxRack is ready
 refreshPresetSelect();
+syncPresetUI();
 
 dom.presetSelect.onchange = () => {
   const name = dom.presetSelect.value;
-  if (!name) return; // "Default" selected — no-op (user can use /config defaults)
+  if (name === '__dirty__') return; // ignore selecting the dirty placeholder
+  if (!name) {
+    // "Default" selected — reload default preset
+    if (defaultPresetQs) loadPreset(defaultPresetQs);
+    activePresetName = '';
+    presetSnapshot = defaultPresetQs;
+    syncPresetUI();
+    debouncedExtract();
+    return;
+  }
   const map = loadPresetsMap();
   if (map[name]) {
     loadPreset(map[name]);
+    activePresetName = name;
+    presetSnapshot = serializePreset(); // snapshot after applying (accounts for clamping)
+    syncPresetUI();
     debouncedExtract();
   }
 };
 
 dom.savePresetBtn.onclick = () => {
-  dom.presetNameInput.value = '';
+  dom.presetNameInput.value = activePresetName;
   openDialog(dom.savePresetOverlay);
   dom.presetNameInput.focus();
 };
@@ -1196,12 +1287,20 @@ dom.savePresetOverlay.querySelector('[data-action="cancel"]').onclick = () => {
 registerDialog(dom.savePresetOverlay);
 
 dom.deletePresetBtn.onclick = () => {
-  const name = dom.presetSelect.value;
-  if (!name) return; // can't delete "Default"
-  if (confirm(t('preset.confirm_delete', { name }))) {
-    deletePreset(name);
-  }
+  if (!activePresetName) return;
+  dom.deletePresetMsg.textContent = t('preset.confirm_delete', { name: activePresetName });
+  openDialog(dom.deletePresetOverlay);
 };
+
+dom.confirmDeleteBtn.onclick = () => {
+  closeDialog(dom.deletePresetOverlay);
+  deletePreset(activePresetName);
+};
+
+dom.deletePresetOverlay.querySelector('[data-action="cancel"]').onclick = () => {
+  closeDialog(dom.deletePresetOverlay);
+};
+registerDialog(dom.deletePresetOverlay);
 
 // Extracted panel: bg picker & download
 initBgPicker(dom.extractedPanel, dom.extractedBg, 'extracted');
@@ -1241,6 +1340,11 @@ fetch('/config')
         if (slot) slot.setValue(cfg[name]);
       }
     }
+
+    // Capture server defaults as the "Default" preset
+    defaultPresetQs = serializePreset();
+    presetSnapshot = defaultPresetQs;
+    syncPresetUI();
 
     // URL sync — apply preset from query string if present (e.g. shared link)
     const urlQs = window.location.search.slice(1);

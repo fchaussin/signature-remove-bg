@@ -85,6 +85,7 @@ button {
   &:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
   &:disabled { opacity: .5; cursor: not-allowed; }
   &.btn-secondary { background: var(--color-secondary); }
+  &.btn-danger { background: #c0392b; }
 }
 
 .status {
@@ -247,6 +248,37 @@ input[type=range] {
   padding: 1rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Indeterminate progress bar as bottom border during extraction */
+.controls::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.busy .controls::after {
+  opacity: 1;
+  animation: controls-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes controls-progress {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(433%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy .controls::after { animation: none; width: 100%; transform: none; opacity: .4; }
 }
 
 /* === Auto-detect button === */
@@ -312,10 +344,16 @@ input[type=range] {
   justify-content: center;
   transition: color .15s, border-color .15s;
 
-  &:hover { color: var(--color-primary); border-color: var(--color-primary); }
+  &:hover:not(:disabled) { color: var(--color-primary); border-color: var(--color-primary); }
 }
 
-.btn-preset--danger:hover { color: #c0392b; border-color: #c0392b; }
+.btn-preset--danger:hover:not(:disabled) { color: #c0392b; border-color: #c0392b; }
+
+.btn-preset:disabled {
+  opacity: .35;
+  cursor: default;
+  pointer-events: none;
+}
 
 .preset-name-input {
   width: 100%;

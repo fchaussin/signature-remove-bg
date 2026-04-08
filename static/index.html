@@ -221,6 +221,18 @@
     </div>
   </dialog>
 
+  <!-- Delete preset popup -->
+  <dialog id="delete-preset" class="dialog dialog--dim" aria-label="Delete preset">
+    <div class="popup">
+      <h2 data-i18n="preset.delete_title">Delete preset</h2>
+      <p class="delete-preset-msg"></p>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button class="btn-danger" data-action="confirm-delete" data-i18n="preset.delete_btn">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/static/vendor/purify.min.js"></script>
   <script src="/static/icons.js"></script>
   <script src="/static/i18n.js"></script>
