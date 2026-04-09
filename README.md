@@ -10,6 +10,8 @@
 
 Self-hosted signature background remover — ultra-lightweight alternative to heavy ML-based tools like rembg. Remove background from handwritten signatures (dark or blue ink) and export as transparent PNG or WebP. No machine learning, no cloud, no GPU: runs in Docker with ~30 MB RAM and processes images in under 100 ms. Includes a REST API and a built-in web UI.
 
+> **Intelligent Auto-Detect** — Analyze your image in one click to suggest the best Mode, Threshold, and Smoothing values based on Otsu's method and chrominance analysis. It identifies ink types (dark or blue) and adapts to your scan's specific lighting conditions.
+
 ## Comparison with ML solutions
 
 | | ML solutions (rembg, withoutbg…) | Signature Remove BG |
