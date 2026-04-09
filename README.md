@@ -10,9 +10,11 @@ Self-hosted signature background remover — ultra-lightweight alternative to he
 |---|---|---|
 | RAM idle | ~2 GB | ~30 MB |
 | RAM processing | ~2.5 GB | ~50–80 MB |
-| Time/image | 2–5 s | < 100 ms |
+| Time/image | 2–5 s | < 100 ms (up to ~1 Mpx) |
 | Docker image | ~1.5 GB | ~120 MB |
 | Use case | Any background | Signatures on light backgrounds |
+
+> **Note**: processing time scales linearly with pixel count. A cropped signature (e.g. 500×200) processes in ~10 ms. A full A4 scan (e.g. 3000×4000) may take several seconds — use the built-in crop tool to isolate the signature area first (see [Workflow: full-page scan](#workflow-full-page-scan)).
 
 ## Prerequisites
 
@@ -110,6 +112,17 @@ The **`</>`** button in the preset bar toggles a Swagger-style API block showing
 ![Crop tool](frontend/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
+
+### Workflow: full-page scan
+
+The generous upload limits (`MAX_IMAGE_DIMENSION=10000`, `MAX_UPLOAD_MB=50`) are intentional — they allow uploading a full-page scan and then cropping to the signature area directly in the web UI, without needing an external tool:
+
+1. **Upload** the full scan (A4 @ 300 dpi = ~3500×2500 px)
+2. **Crop** to isolate the signature zone — this reduces the image to a few hundred pixels
+3. **Auto-detect** re-analyzes the cropped image for optimal settings
+4. **Extract** runs in milliseconds on the small cropped area
+
+This is the recommended workflow for scanned documents. Processing a full A4 scan works but is slower (~1–4 s) and uses more memory; cropping first gives both faster results and better extraction quality since the algorithm focuses only on the signature.
 
 ### Actual-size zoom
 
@@ -304,7 +317,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `HOST` | `0.0.0.0` | Server bind address (internal) |
 | `PORT` | `8000` | Server port (internal) |
 | `PUBLIC_PORT` | `8000` | Port exposed on host machine |
-| `MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB |
+| `MAX_UPLOAD_MB` | `50` | Maximum upload file size in MB (generous to allow full-page scans for in-app cropping) |
 | `DEFAULT_MODE` | `auto` | Default extraction mode (`auto`, `dark`, `blue`) |
 | `DEFAULT_THRESHOLD` | `220` | Default luminosity threshold (50–250) |
 | `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
@@ -317,7 +330,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `MAX_IMAGE_PIXELS` | `50000000` | Pillow decompression bomb limit |
 | `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB |
-| `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
+| `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels (allows full-page scans up to ~A3 @ 300 dpi) |
 | `MAX_CONCURRENT_OPS` | `4` | Maximum concurrent CPU-heavy requests (extract/analyze) |
 | `HIDE_CONFIG_WARNINGS` | `false` | Hide configuration warnings in the web UI |
 
