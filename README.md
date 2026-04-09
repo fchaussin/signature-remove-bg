@@ -380,6 +380,7 @@ MAX_IMAGE_PIXELS=25000000
 ## Technical specifications
 
 - **Runtime**: Python 3.12 / FastAPI / Uvicorn
+- **Platforms**: `linux/amd64` + `linux/arm64` (Mac Apple Silicon, Raspberry Pi, AWS Graviton)
 - **Dependencies**: Pillow, NumPy, python-multipart
 - **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing, applied as a configurable pipeline
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)

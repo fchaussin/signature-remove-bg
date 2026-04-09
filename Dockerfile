@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+LABEL org.opencontainers.image.source="https://github.com/fchaussin/signature-remove-bg"
+LABEL org.opencontainers.image.description="Ultra lightweight signature background remover"
+LABEL org.opencontainers.image.licenses="MIT"
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
