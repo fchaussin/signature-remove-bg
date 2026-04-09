@@ -278,9 +278,15 @@ frontend/
     en.json            # English translations
     fr.json            # French translations
   screenshots/         # README screenshots
+tests/
+  test_processing.py   # Unit tests — extraction pipeline functions
+  test_validation.py   # Unit tests — input validation, parsing
+  test_api.py          # Integration tests — API endpoints
+  conftest.py          # Shared fixtures (synthetic images)
 Dockerfile
 docker-compose.yml
 requirements.txt
+requirements-dev.txt   # Dev dependencies (pytest, httpx)
 .env.example           # Environment variables reference
 DEPENDENCIES.md        # Why each dependency is used and upgrade notes
 .github/
@@ -313,6 +319,31 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `MAX_BASE64_MB` | `10` | Maximum base64 response size in MB |
 | `MAX_IMAGE_DIMENSION` | `10000` | Maximum width or height in pixels |
 | `MAX_CONCURRENT_OPS` | `4` | Maximum concurrent CPU-heavy requests (extract/analyze) |
+| `HIDE_CONFIG_WARNINGS` | `false` | Hide configuration warnings in the web UI |
+
+### Configuration warnings
+
+By default, the web UI displays warning banners when the configuration is not production-ready (e.g. CORS wildcard). Set `HIDE_CONFIG_WARNINGS=true` to hide them.
+
+### High-load configuration
+
+For shared or high-traffic deployments, consider these settings to reduce CPU and RAM usage:
+
+```env
+RENDER_MODE=manual
+ANALYZE_ON_UPLOAD=false
+MAX_CONCURRENT_OPS=2
+MAX_IMAGE_DIMENSION=5000
+MAX_IMAGE_PIXELS=25000000
+```
+
+| Setting | Effect |
+|---|---|
+| `RENDER_MODE=manual` | Disables automatic re-extraction on parameter change — users must click Render |
+| `ANALYZE_ON_UPLOAD=false` | Skips auto-detection on upload — saves one CPU-bound analysis per upload |
+| `MAX_CONCURRENT_OPS=2` | Limits parallel CPU work — prevents saturation under concurrent requests |
+| `MAX_IMAGE_DIMENSION=5000` | Rejects images above 5000 px — caps per-request memory and CPU |
+| `MAX_IMAGE_PIXELS=25000000` | Halves the decompression bomb limit — further caps memory |
 
 ## Technical specifications
 
