@@ -92,6 +92,12 @@ class FxRack {
     // Inject SVG icons into the new slot
     if (typeof Icon !== 'undefined') Icon.inject(slot.el);
 
+    // Auto-expand rack when adding a slot while collapsed
+    if (this.el.classList.contains('collapsed')) {
+      this.el.classList.remove('collapsed');
+      if (this._collapseBtn) this._collapseBtn.classList.add('collapsed');
+    }
+
     this._syncLabels();
     this._syncButtons();
     this._onChange();
