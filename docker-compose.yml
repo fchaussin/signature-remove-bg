@@ -1,5 +1,6 @@
 services:
   signature-remove-bg:
+    image: fchaussin/signature-remove-bg:latest
     build: .
     ports:
       - "${PUBLIC_PORT:-8000}:8000"
