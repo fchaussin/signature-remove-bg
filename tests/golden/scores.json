@@ -1,0 +1,29 @@
+{
+  "criteria": ["fond", "encre", "bords", "bruit", "contraste"],
+  "scale": "1-5 (step 0.5)",
+  "context_factors": ["resolution", "source_quality"],
+  "notes": "Scores reflect result quality relative to what the source allows. Low resolution inherently limits edge sharpness and detail — this is a physical constraint, not an algorithm defect.",
+  "history": [
+    {
+      "version": "0.3.0",
+      "date": "2026-04-10",
+      "global_avg": 3.99,
+      "comment": "Baseline scoring. Lined paper is the main weakness (1.2–1.8). Clean/noisy sources score well (4.0–5.0)."
+    }
+  ],
+  "version": "0.3.0",
+  "images": {
+    "dark_clean_hires":    { "fond": 5,   "encre": 5,   "bords": 5,   "bruit": 5,   "contraste": 5,   "avg": 5.0, "resolution": "high",  "source_quality": "clean" },
+    "dark_clean_lowres":   { "fond": 5,   "encre": 4,   "bords": 2,   "bruit": 5,   "contraste": 5,   "avg": 4.2, "resolution": "low",   "source_quality": "clean" },
+    "dark_faint_grey_bg":  { "fond": 5,   "encre": 3,   "bords": 3,   "bruit": 5,   "contraste": 4,   "avg": 4.0, "resolution": "mid",   "source_quality": "faint" },
+    "dark_lined_paper":    { "fond": 1,   "encre": 2,   "bords": 2,   "bruit": 2,   "contraste": 2,   "avg": 1.8, "resolution": "high",  "source_quality": "lined" },
+    "dark_lined_lowres":   { "fond": 1,   "encre": 1,   "bords": 1,   "bruit": 1,   "contraste": 2,   "avg": 1.2, "resolution": "low",   "source_quality": "lined" },
+    "dark_noisy_midres":   { "fond": 5,   "encre": 4.5, "bords": 5,   "bruit": 5,   "contraste": 5,   "avg": 4.9, "resolution": "mid",   "source_quality": "noisy" },
+    "dark_noisy_lowres":   { "fond": 5,   "encre": 2,   "bords": 3,   "bruit": 4,   "contraste": 3,   "avg": 3.4, "resolution": "low",   "source_quality": "noisy" },
+    "blue_clean_hires":    { "fond": 5,   "encre": 5,   "bords": 5,   "bruit": 4.5, "contraste": 5,   "avg": 4.9, "resolution": "high",  "source_quality": "clean" },
+    "blue_clean_lowres":   { "fond": 5,   "encre": 5,   "bords": 3.5, "bruit": 4,   "contraste": 5,   "avg": 4.5, "resolution": "low",   "source_quality": "clean" },
+    "blue_faint_tinted_bg":{ "fond": 5,   "encre": 3,   "bords": 3.5, "bruit": 4.5, "contraste": 5,   "avg": 4.2, "resolution": "mid",   "source_quality": "tinted" },
+    "blue_bright_lowres":  { "fond": 5,   "encre": 4,   "bords": 3,   "bruit": 4,   "contraste": 5,   "avg": 4.2, "resolution": "low",   "source_quality": "clean" },
+    "blue_multi_midres":   { "fond": 5,   "encre": 4,   "bords": 4,   "bruit": 5,   "contraste": 5,   "avg": 4.6, "resolution": "mid",   "source_quality": "clean" }
+  }
+}
