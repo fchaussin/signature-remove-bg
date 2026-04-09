@@ -480,6 +480,21 @@ async function applyPresets() {
 
 const PRESETS_STORAGE_KEY = 'sig-presets';
 
+/** Built-in presets — always available, cannot be deleted. */
+const BUILTIN_PRESETS = {
+  'Low res / Low contrast': JSON.stringify({
+    mode: 'dark',
+    format: 'png',
+    steps: [
+      { effect: 'threshold',      value: 109, enabled: true },
+      { effect: 'blue_tolerance', value: 80,  enabled: true },
+      { effect: 'contrast',       value: 98,  enabled: true },
+      { effect: 'smoothing',      value: 1,   enabled: true },
+      { effect: 'contrast',       value: 20,  enabled: true },
+    ],
+  }),
+};
+
 /** Read all saved presets from localStorage. */
 function loadPresetsMap() {
   try {
@@ -555,13 +570,21 @@ function loadPreset(raw) {
   return true;
 }
 
-/** Populate the preset <select> from localStorage. */
+/** Populate the preset <select> from built-in + localStorage presets. */
 function refreshPresetSelect() {
   const map = loadPresetsMap();
   // Remove all non-default options
   while (dom.presetSelect.options.length > 1) {
     dom.presetSelect.remove(1);
   }
+  // Built-in presets first
+  for (const name of Object.keys(BUILTIN_PRESETS)) {
+    const opt = document.createElement('option');
+    opt.value = `builtin:${name}`;
+    opt.textContent = name;
+    dom.presetSelect.appendChild(opt);
+  }
+  // User presets
   for (const name of Object.keys(map)) {
     const opt = document.createElement('option');
     opt.value = name;
@@ -1124,6 +1147,18 @@ dom.presetSelect.onchange = () => {
     requestExtract();
     return;
   }
+  // Check built-in presets first
+  if (name.startsWith('builtin:')) {
+    const builtinName = name.slice('builtin:'.length);
+    if (BUILTIN_PRESETS[builtinName]) {
+      loadPreset(BUILTIN_PRESETS[builtinName]);
+      activePresetName = builtinName;
+      presetSnapshot = serializePreset();
+      syncPresetUI();
+      requestExtract();
+      return;
+    }
+  }
   const map = loadPresetsMap();
   if (map[name]) {
     loadPreset(map[name]);
@@ -1161,7 +1196,7 @@ dom.savePresetOverlay.querySelector('[data-action="cancel"]').onclick = () => {
 registerDialog(dom.savePresetOverlay);
 
 dom.deletePresetBtn.onclick = () => {
-  if (!activePresetName) return;
+  if (!activePresetName || BUILTIN_PRESETS[activePresetName]) return;
   dom.deletePresetMsg.textContent = t('preset.confirm_delete', { name: activePresetName });
   openDialog(dom.deletePresetOverlay);
 };
