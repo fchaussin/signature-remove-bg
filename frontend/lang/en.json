@@ -25,6 +25,7 @@
   "btn.crop": "Crop",
   "btn.download": "Download",
   "btn.base64": "Base64",
+  "btn.downsize": "Downsize",
   "btn.copy": "Copy",
   "btn.copied": "Copied!",
   "base64.title": "Base64 Export",

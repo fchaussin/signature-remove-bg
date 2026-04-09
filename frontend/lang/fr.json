@@ -25,6 +25,7 @@
   "btn.crop": "Recadrer",
   "btn.download": "T\u00e9l\u00e9charger",
   "btn.base64": "Base64",
+  "btn.downsize": "R\u00e9duire",
   "btn.copy": "Copier",
   "btn.copied": "Copi\u00e9 !",
   "base64.title": "Export Base64",

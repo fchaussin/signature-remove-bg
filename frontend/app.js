@@ -330,6 +330,8 @@ function checkResolution() {
 
   // Check processing limit — block extract/analyze if too large
   processingBlocked = pixels > maxProcessPixels;
+  const downsizeBtn = dom.originalPanel.querySelector('[data-action="downsize"]');
+  if (downsizeBtn) downsizeBtn.style.display = processingBlocked ? '' : 'none';
   if (processingBlocked) {
     dom.resHint.className = 'res-hint warn-crop';
     dom.resHint.textContent = t('hint.needs_crop', { w: naturalW, h: naturalH });
@@ -985,6 +987,41 @@ function initCrop() {
   };
 
   registerDialog(dom.cropOverlay);
+
+  // Downsize button — scale image down to fit MAX_PROCESS_PIXELS
+  dom.originalPanel.querySelector('[data-action="downsize"]').onclick = () => {
+    if (!currentFile || !processingBlocked) return;
+    const img = new Image();
+    img.onload = () => {
+      const pixels = img.naturalWidth * img.naturalHeight;
+      const scale = Math.sqrt(maxProcessPixels / pixels);
+      const newW = Math.floor(img.naturalWidth * scale);
+      const newH = Math.floor(img.naturalHeight * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = newW;
+      canvas.height = newH;
+      canvas.getContext('2d').drawImage(img, 0, 0, newW, newH);
+
+      const genBefore = fileGeneration;
+      canvas.toBlob(blob => {
+        if (fileGeneration !== genBefore) return;
+        fileGeneration++;
+        currentFile = new File([blob], 'downsized.png', { type: blob.type });
+        const gen = fileGeneration;
+        dom.originalImg.src = safeObjectURL('original', blob);
+        dom.originalImg.onload = () => {
+          if (fileGeneration !== gen) return;
+          naturalW = dom.originalImg.naturalWidth;
+          naturalH = dom.originalImg.naturalHeight;
+          checkResolution();
+          syncCompareBeforeImg();
+        };
+        extractSignature();
+      }, 'image/png');
+    };
+    img.src = safeObjectURL('downsize-src', currentFile);
+  };
 }
 
 
