@@ -284,7 +284,7 @@ def _step_blue_tolerance(alpha: np.ndarray, r: np.ndarray, g: np.ndarray,
     blue_strength = np.minimum(
         np.minimum(b - blue_tolerance, b - r - BLUE_CHROMA_R_OFFSET),
         b - g - BLUE_CHROMA_G_OFFSET,
-    )
+    ).astype(np.float64)
     alpha_blue = np.clip(blue_strength * 255 / ANTIALIAS_SM, 0, 255)
     return np.maximum(alpha, alpha_blue)
 
