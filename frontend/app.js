@@ -1280,11 +1280,45 @@ Icon.inject();
 // We track completion with flags and run finalize() when both are done.
 let _i18nReady  = false;
 let _configDone = false;
+let _configData = null;
 
 function _onBothReady() {
   if (!_i18nReady || !_configDone) return;
+
   // Rack labels need translated strings + slots from /config
   if (fxRack) fxRack.refreshLabels();
+
+  // Config warnings (needs i18n for translated messages)
+  if (_configData && Array.isArray(_configData.warnings) && _configData.warnings.length) {
+    const container = document.querySelector('.config-warnings');
+    const dismissed = JSON.parse(sessionStorage.getItem('dismissed-warnings') || '[]');
+    if (container) {
+      container.innerHTML = '';
+      for (const w of _configData.warnings) {
+        if (!w.key || !w.level) continue;
+        if (dismissed.includes(w.key)) continue;
+        const div = document.createElement('div');
+        div.className = `config-notice ${w.level}`;
+        const span = document.createElement('span');
+        span.textContent = i18n.t(w.key);
+        const btn = document.createElement('button');
+        btn.className = 'config-notice-close';
+        btn.setAttribute('aria-label', 'Close');
+        btn.textContent = '\u00d7';
+        btn.onclick = () => {
+          div.remove();
+          dismissed.push(w.key);
+          sessionStorage.setItem('dismissed-warnings', JSON.stringify(dismissed));
+        };
+        div.appendChild(span);
+        div.appendChild(btn);
+        container.appendChild(div);
+      }
+    }
+  }
+
+  // Reveal UI
+  document.body.classList.remove('loading');
 }
 
 // i18n — detect browser language and apply translations
@@ -1300,38 +1334,11 @@ fetch('/config')
   .then(cfg => {
     if (!cfg || typeof cfg !== 'object') return;
 
+    _configData = cfg;
+
     if (cfg.version) {
       const el = document.querySelector('.version');
       if (el) el.textContent = 'v' + cfg.version;
-    }
-
-    // Config warnings
-    if (Array.isArray(cfg.warnings) && cfg.warnings.length) {
-      const container = document.querySelector('.config-warnings');
-      const dismissed = JSON.parse(sessionStorage.getItem('dismissed-warnings') || '[]');
-      if (container) {
-        container.innerHTML = '';
-        for (const w of cfg.warnings) {
-          if (!w.key || !w.level) continue;
-          if (dismissed.includes(w.key)) continue;
-          const div = document.createElement('div');
-          div.className = `config-notice ${w.level}`;
-          const span = document.createElement('span');
-          span.textContent = i18n.t(w.key);
-          const btn = document.createElement('button');
-          btn.className = 'config-notice-close';
-          btn.setAttribute('aria-label', 'Close');
-          btn.textContent = '\u00d7';
-          btn.onclick = () => {
-            div.remove();
-            dismissed.push(w.key);
-            sessionStorage.setItem('dismissed-warnings', JSON.stringify(dismissed));
-          };
-          div.appendChild(span);
-          div.appendChild(btn);
-          container.appendChild(div);
-        }
-      }
     }
 
     if (VALID_MODES.has(cfg.mode)) {
