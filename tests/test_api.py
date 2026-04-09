@@ -40,7 +40,7 @@ class TestConfig:
         resp = client.get("/config")
         assert resp.status_code == 200
         data = resp.json()
-        for key in ("mode", "format", "render_mode", "steps", "max_steps"):
+        for key in ("version", "mode", "format", "render_mode", "steps", "max_steps"):
             assert key in data, f"Missing key: {key}"
 
     def test_steps_structure(self, client):

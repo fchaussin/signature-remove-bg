@@ -144,6 +144,24 @@ DEFAULT_CONTRAST       = DEFAULTS["contrast"]
 # -- CORS (A05 — set CORS_ORIGINS in production, wildcard is dev-only) ------
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 
+# -- Config warnings (shown in WebUI unless HIDE_CONFIG_WARNINGS=true) ------
+HIDE_CONFIG_WARNINGS = os.environ.get("HIDE_CONFIG_WARNINGS", "false").lower() in ("true", "1", "yes")
+
+
+def _build_config_warnings() -> list[dict]:
+    """Return a list of {level, key} warnings about the current configuration."""
+    if HIDE_CONFIG_WARNINGS:
+        return []
+    warnings = []
+    if "*" in CORS_ORIGINS:
+        warnings.append({"level": "danger", "key": "warn.cors_wildcard"})
+    if MAX_CONCURRENT_OPS < 2:
+        warnings.append({"level": "warning", "key": "warn.low_concurrency"})
+    if MAX_UPLOAD_MB > 100:
+        warnings.append({"level": "warning", "key": "warn.high_upload_limit"})
+    return warnings
+
+
 # -- Pillow safety -----------------------------------------------------------
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
@@ -172,9 +190,11 @@ def _safe_log(value: str | None, max_len: int = 100) -> str:
 #  4. App setup
 # ---------------------------------------------------------------------------
 
+APP_VERSION = "0.3.0"
+
 app = FastAPI(
     title="Signature Remove Background",
-    version="0.3.0",
+    version=APP_VERSION,
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -612,6 +632,7 @@ async def health():
 async def config():
     """Expose non-sensitive extraction defaults to the frontend."""
     return JSONResponse({
+        "version":        APP_VERSION,
         "mode":           DEFAULT_MODE,
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,

@@ -1300,6 +1300,11 @@ fetch('/config')
   .then(cfg => {
     if (!cfg || typeof cfg !== 'object') return;
 
+    if (cfg.version) {
+      const el = document.querySelector('.version');
+      if (el) el.textContent = 'v' + cfg.version;
+    }
+
     if (VALID_MODES.has(cfg.mode)) {
       dom.param('mode').value = cfg.mode;
     }

@@ -88,6 +88,13 @@ h1 {
   font-size: 1.4rem;
 }
 
+.version {
+  font-size: .7rem;
+  color: var(--color-secondary);
+  margin-left: .4rem;
+  vertical-align: super;
+}
+
 /* === Shared === */
 
 button {
