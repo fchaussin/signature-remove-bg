@@ -1,6 +1,11 @@
 # Signature Remove Background
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Security audit](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ed.svg?logo=docker&logoColor=white)](Dockerfile)
+
+![Demo](frontend/screenshots/demo.gif)
 
 Self-hosted signature background remover — ultra-lightweight alternative to heavy ML-based tools like rembg. Remove background from handwritten signatures (dark or blue ink) and export as transparent PNG or WebP. No machine learning, no cloud, no GPU: runs in Docker with ~30 MB RAM and processes images in under 100 ms. Includes a REST API and a built-in web UI.
 
@@ -45,22 +50,39 @@ Three import methods:
 
 The upload zone stays visible at the top of the page so you can load a new image at any time.
 
-### Real-time settings
+### Editor
 
 ![Editor view](frontend/screenshots/editor.png)
 
-After uploading, a settings panel appears with instant preview:
+After uploading, the editor appears with a side-by-side view: original image on the left, extracted signature on the right. A before/after comparison slider lets you visualize the extraction result directly.
+
+### Controls and effects rack
+
+![Controls and effects rack](frontend/screenshots/controls.png)
+
+The controls panel provides:
 
 | Setting | Description |
 |---|---|
 | Mode | `Auto` (dark + blue), `Dark only`, `Blue only` |
-| Luminosity threshold | Sensitivity to dark pixels (50–250) |
-| Blue tolerance | Sensitivity to blue tints (20–200) |
-| Contrast | Boost ink opacity for faint scans (0–100) |
-| Edge smoothing | Anti-aliasing width on signature edges (0–100) |
 | Format | PNG or WebP |
 
-Each change triggers automatic re-extraction (debounced at 300 ms) in live mode. A progress bar animates at the bottom of the controls panel during extraction.
+The **effects rack** below displays the processing pipeline. Each effect has:
+
+- A **toggle** (checkbox) to enable/disable it
+- A **slider** for its value
+- A **drag handle** to reorder the processing pipeline
+
+Available effects:
+
+| Effect | Range | Description |
+|---|---|---|
+| Luminosity threshold | 50–250 | Sensitivity to dark pixels |
+| Blue tolerance | 20–200 | Sensitivity to blue tints |
+| Contrast | 0–100 | Boost ink opacity for faint scans |
+| Edge smoothing | 0–100 | Anti-aliasing width on signature edges |
+
+The order in which effects are applied changes the final result. Drag & drop to experiment with different processing chains. The same effect can be added multiple times.
 
 ### Render mode
 
@@ -73,16 +95,6 @@ Three render modes control when extraction runs:
 | **Auto** (default) | Starts in live mode. Automatically switches to manual when the image exceeds a pixel threshold (`AUTO_MANUAL_PIXELS`) |
 
 A **Live** toggle in the controls bar lets the user switch between live and manual at any time. In manual mode, the extracted preview dims to indicate it's outdated, and the Render button pulses until clicked.
-
-### Effects rack
-
-The four effects (threshold, blue tolerance, contrast, smoothing) are displayed as a reorderable rack. Each effect has:
-
-- A **toggle** (checkbox) to enable/disable it
-- A **slider** for its value
-- A **drag handle** to reorder the processing pipeline
-
-The order in which effects are applied changes the final result. Drag & drop to experiment with different processing chains.
 
 ### Auto-detect
 
@@ -97,7 +109,9 @@ Save your settings as named presets stored in `localStorage`:
 - **Select**: switch between presets instantly (reloads all settings)
 - **Default**: restores server defaults
 
-When you modify settings after loading a preset, the select shows "Save…" to indicate unsaved changes. The save button becomes active and the delete button is disabled until you save or re-select the preset.
+Built-in presets (e.g. "Low res / Low contrast") are always available and cannot be deleted.
+
+When you modify settings after loading a preset, the select shows "Save…" to indicate unsaved changes.
 
 ### API request helper
 
@@ -123,12 +137,6 @@ The generous upload limits (`MAX_IMAGE_DIMENSION=10000`, `MAX_UPLOAD_MB=50`) are
 4. **Extract** runs in milliseconds on the small cropped area
 
 This is the recommended workflow for scanned documents. Processing a full A4 scan works but is slower (~1–4 s) and uses more memory; cropping first gives both faster results and better extraction quality since the algorithm focuses only on the signature.
-
-### Actual-size zoom
-
-![Zoom popup](frontend/screenshots/zoom.png)
-
-Click the original or extracted image to open a popup at actual size (1:1). If the image exceeds the viewport, move the mouse to pan.
 
 ### Signature preview
 
@@ -296,6 +304,10 @@ tests/
   test_validation.py   # Unit tests — input validation, parsing
   test_api.py          # Integration tests — API endpoints
   conftest.py          # Shared fixtures (synthetic images)
+benchmarks/
+  bench_processing.py  # Processing pipeline benchmark (time + memory)
+  bench_api.py         # API throughput benchmark (concurrent requests)
+  REPORT.md            # Latest benchmark results
 Dockerfile
 docker-compose.yml
 requirements.txt
