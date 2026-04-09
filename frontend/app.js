@@ -201,6 +201,8 @@ let autoManualPixels  = 4_000_000;
 let livePreview       = true;    // current client-side state
 let renderStale       = false;   // true when settings changed but not rendered (manual mode)
 let analyzeOnUpload   = true;    // server setting: call /analyze on each upload
+let maxProcessPixels  = 4_000_000; // server setting: max pixels for extract/analyze
+let processingBlocked = false;     // true when image exceeds maxProcessPixels
 
 // Rack — initialized in Bootstrap
 let fxRack = null;
@@ -321,9 +323,19 @@ function loadFile(f) {
 function checkResolution() {
   dom.resInfo.textContent = `(${naturalW}\u00d7${naturalH})`;
   const ratio = naturalW / dom.originalImg.clientWidth;
+  const pixels = naturalW * naturalH;
 
   dom.resHint.style.display = 'none';
   dom.resHint.className = 'res-hint';
+
+  // Check processing limit — block extract/analyze if too large
+  processingBlocked = pixels > maxProcessPixels;
+  if (processingBlocked) {
+    dom.resHint.className = 'res-hint warn-crop';
+    dom.resHint.textContent = t('hint.needs_crop', { w: naturalW, h: naturalH });
+    dom.resHint.style.display = 'block';
+    return; // skip other hints
+  }
 
   if (ratio < 0.8) {
     dom.resHint.className = 'res-hint warn-small';
@@ -337,7 +349,7 @@ function checkResolution() {
 }
 
 async function extractSignature() {
-  if (!currentFile) return;
+  if (!currentFile || processingBlocked) return;
 
   // Abort any in-flight extraction
   if (extractController) extractController.abort();
@@ -407,7 +419,7 @@ function downloadExtracted() {
  * When complete, the "Auto" button pulses to signal readiness.
  */
 async function analyzeImage() {
-  if (!currentFile) return;
+  if (!currentFile || processingBlocked) return;
   pendingPresets = null;
   dom.autoDetectBtn.classList.remove('ready');
 
@@ -1361,6 +1373,9 @@ fetch('/config')
       renderModeSetting = cfg.render_mode;
       if (renderModeSetting === 'manual') setLivePreview(false);
       else if (renderModeSetting === 'live') setLivePreview(true);
+    }
+    if (typeof cfg.max_process_pixels === 'number' && cfg.max_process_pixels > 0) {
+      maxProcessPixels = cfg.max_process_pixels;
     }
     if (typeof cfg.auto_manual_pixels === 'number' && cfg.auto_manual_pixels > 0) {
       autoManualPixels = cfg.auto_manual_pixels;

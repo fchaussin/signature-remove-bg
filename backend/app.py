@@ -110,6 +110,7 @@ MAX_UPLOAD_MB       = _int_env("MAX_UPLOAD_MB", 50)
 MAX_UPLOAD_BYTES    = MAX_UPLOAD_MB * 1024 * 1024
 MAX_IMAGE_PIXELS    = _int_env("MAX_IMAGE_PIXELS", 50_000_000)   # ~7 000 × 7 000
 MAX_IMAGE_DIMENSION = _int_env("MAX_IMAGE_DIMENSION", 10_000)
+MAX_PROCESS_PIXELS  = _int_env("MAX_PROCESS_PIXELS", 4_000_000)  # extract/analyze limit — crop first
 MAX_BASE64_BYTES    = _int_env("MAX_BASE64_MB", 10) * 1024 * 1024  # A04 — cap base64 response size
 UPLOAD_CHUNK_SIZE   = 64 * 1024  # 64 KB per read
 MAX_CONCURRENT_OPS  = _int_env("MAX_CONCURRENT_OPS", 4)  # A04 — cap parallel CPU-heavy requests
@@ -637,6 +638,7 @@ async def config():
         "mode":           DEFAULT_MODE,
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,
+        "max_process_pixels": MAX_PROCESS_PIXELS,
         "auto_manual_pixels": AUTO_MANUAL_PIXELS,
         "analyze_on_upload": ANALYZE_ON_UPLOAD,
         "max_steps":      MAX_PIPELINE_STEPS,
@@ -708,6 +710,16 @@ def _parse_steps(raw: str) -> list[tuple[str, int]] | None:
     return steps if steps else None
 
 
+def _check_process_limit(image: Image.Image, safe_name: str) -> JSONResponse | None:
+    """Return an error response if the image exceeds MAX_PROCESS_PIXELS, else None."""
+    w, h = image.size
+    if w * h > MAX_PROCESS_PIXELS:
+        logger.info("Image too large for processing: %dx%d (%d px) for %s — crop first",
+                     w, h, w * h, safe_name)
+        return JSONResponse({"code": "IMAGE_NEEDS_CROP"}, status_code=400)
+    return None
+
+
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),
@@ -718,6 +730,10 @@ async def extract(
 ):
     """Extract the signature from an uploaded image and return a transparent PNG/WebP."""
     image, safe_name, err = await _validate_and_open(file)
+    if err:
+        return err
+
+    err = _check_process_limit(image, safe_name)
     if err:
         return err
 
@@ -767,6 +783,10 @@ async def extract(
 async def analyze(file: UploadFile = File(...)):
     """Analyse an image and return optimal extraction presets."""
     image, safe_name, err = await _validate_and_open(file)
+    if err:
+        return err
+
+    err = _check_process_limit(image, safe_name)
     if err:
         return err
 

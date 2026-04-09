@@ -190,3 +190,32 @@ class TestEdgeCases:
         """Empty steps string → server defaults."""
         resp = _upload(client, "/extract", dark_stroke_png_bytes, steps="")
         assert resp.status_code == 200
+
+    def test_oversized_image_needs_crop(self, client):
+        """Image exceeding MAX_PROCESS_PIXELS → IMAGE_NEEDS_CROP."""
+        import backend.app as app_module
+        original = app_module.MAX_PROCESS_PIXELS
+        try:
+            # Set limit very low so our 10x10 test image exceeds it
+            app_module.MAX_PROCESS_PIXELS = 50
+            buf = io.BytesIO()
+            Image.new("RGB", (10, 10), (30, 30, 30)).save(buf, format="PNG")
+            resp = _upload(client, "/extract", buf.getvalue())
+            assert resp.status_code == 400
+            assert resp.json()["code"] == "IMAGE_NEEDS_CROP"
+        finally:
+            app_module.MAX_PROCESS_PIXELS = original
+
+    def test_oversized_image_analyze_needs_crop(self, client):
+        """Analyze also blocked by MAX_PROCESS_PIXELS."""
+        import backend.app as app_module
+        original = app_module.MAX_PROCESS_PIXELS
+        try:
+            app_module.MAX_PROCESS_PIXELS = 50
+            buf = io.BytesIO()
+            Image.new("RGB", (10, 10), (30, 30, 30)).save(buf, format="PNG")
+            resp = _upload(client, "/analyze", buf.getvalue())
+            assert resp.status_code == 400
+            assert resp.json()["code"] == "IMAGE_NEEDS_CROP"
+        finally:
+            app_module.MAX_PROCESS_PIXELS = original

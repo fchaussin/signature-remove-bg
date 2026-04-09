@@ -799,6 +799,7 @@ input[type=range] {
 
   &.warn-small { background: var(--color-warn-small-bg); color: var(--color-warn-small-text); }
   &.warn-large { background: var(--color-warn-large-bg); color: var(--color-warn-large-text); }
+  &.warn-crop  { background: #fce4ec; color: #7f0000; font-weight: 500; }
 }
 
 /* === Comparison slider === */
