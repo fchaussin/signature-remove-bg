@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; script-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
-  <meta name="description" content="Extract handwritten signatures from scanned documents. Lightweight, no ML, transparent PNG/WebP output.">
+  <meta name="description" content="Signature extractor — remove background from handwritten signatures. Lightweight, no ML, transparent PNG/WebP output.">
   <meta name="theme-color" content="#4a90d9">
   <title>Signature Remove Background</title>
   <link rel="stylesheet" href="/static/style.css">
@@ -12,9 +12,9 @@
 </head>
 <body>
   <a href="#editor" class="skip-link" data-i18n="a11y.skip">Skip to main content</a>
-  <main>
-  <h1 data-i18n="app.title">Signature Extractor</h1><span class="version"></span>
   <div class="config-warnings" role="alert"></div>
+  <main>
+  <h1 data-i18n="app.title">Signature Remove Background</h1>
 
   <!-- Upload -->
   <div id="dropzone" class="drop-zone" role="button" tabindex="0" aria-label="Upload image">
@@ -262,6 +262,8 @@
       </div>
     </div>
   </dialog>
+
+  <footer class="sticky-footer"><a href="https://github.com/fchaussin/signature-remove-bg" target="_blank" rel="noopener" class="footer-link"><span class="app-name" data-i18n="app.title">Signature Remove Background</span> <span class="version"></span></a></footer>
 
   <script src="/static/vendor/purify.min.js"></script>
   <script src="/static/icons.js"></script>

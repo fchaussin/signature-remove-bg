@@ -1308,13 +1308,27 @@ fetch('/config')
     // Config warnings
     if (Array.isArray(cfg.warnings) && cfg.warnings.length) {
       const container = document.querySelector('.config-warnings');
+      const dismissed = JSON.parse(sessionStorage.getItem('dismissed-warnings') || '[]');
       if (container) {
         container.innerHTML = '';
         for (const w of cfg.warnings) {
           if (!w.key || !w.level) continue;
+          if (dismissed.includes(w.key)) continue;
           const div = document.createElement('div');
           div.className = `config-notice ${w.level}`;
-          div.textContent = i18n.t(w.key);
+          const span = document.createElement('span');
+          span.textContent = i18n.t(w.key);
+          const btn = document.createElement('button');
+          btn.className = 'config-notice-close';
+          btn.setAttribute('aria-label', 'Close');
+          btn.textContent = '\u00d7';
+          btn.onclick = () => {
+            div.remove();
+            dismissed.push(w.key);
+            sessionStorage.setItem('dismissed-warnings', JSON.stringify(dismissed));
+          };
+          div.appendChild(span);
+          div.appendChild(btn);
           container.appendChild(div);
         }
       }
