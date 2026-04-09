@@ -451,8 +451,13 @@ async function analyzeImage() {
  * Apply pending presets to the mode select and effect rack,
  * then re-trigger extraction with the new values.
  */
-function applyPresets() {
-  if (!pendingPresets || !fxRack) return;
+async function applyPresets() {
+  if (!fxRack) return;
+
+  // Always re-analyze the current file (may have been cropped since last analysis)
+  await analyzeImage();
+
+  if (!pendingPresets) return;
   const p = pendingPresets;
 
   dom.param('mode').value = p.mode;
