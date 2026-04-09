@@ -391,15 +391,17 @@ MAX_IMAGE_PIXELS=25000000
 
 ## Parameter tuning
 
-- **Clean scan, crisp dark signature**: default settings (`threshold=220`)
-- **Grayish scan / recycled paper**: lower threshold (`threshold=140–160`)
-- **Very faint signature**: raise threshold (`threshold=200–220`)
-- **Background noise captured**: lower threshold (`threshold=120–150`)
-- **Light blue pen**: lower `blue_tolerance` (`blue_tolerance=40–60`)
-- **Faint / washed-out signature**: increase `contrast` (`contrast=40–70`)
-- **Jagged / aliased edges**: increase `smoothing` (`smoothing=50–80`)
-- **Crisp, sharp edges needed**: set `smoothing=0` for binary mask
-- **Don't know where to start**: use the **Auto** button — it analyzes the image and suggests optimal values
+In most cases, click **Auto** and you're done — auto-detection handles mode, threshold, contrast, and smoothing based on the image content.
+
+For manual fine-tuning when Auto doesn't nail it:
+
+| Symptom | Adjust |
+|---|---|
+| Background not fully removed | Lower threshold |
+| Ink strokes missing / too thin | Raise threshold or increase contrast |
+| Jagged edges | Increase smoothing |
+| Too much smoothing / blurry | Lower smoothing (0 = pixel-sharp) |
+| Blue pen not detected | Switch mode to `Blue` or `Auto` |
 
 ## License
 
