@@ -104,10 +104,7 @@ class TestStepBlueTolerance:
         assert result.max() == 0, "Non-blue dark pixels should be ignored"
 
     def test_red_pixel_ignored(self):
-        # NOTE: using (100,30,30) not (180,30,30) to avoid a latent int16
-        # overflow bug in _step_blue_tolerance (blue_strength * 255 wraps
-        # when blue_strength < -128).  That overflow is a separate issue.
-        r, g, b, _, alpha = _make_arrays((100, 30, 30))
+        r, g, b, _, alpha = _make_arrays((180, 30, 30))
         result = _step_blue_tolerance(alpha, r, g, b, MODE_AUTO, blue_tolerance=80)
         assert result.max() == 0, "Red pixels should be ignored"
 
