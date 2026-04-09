@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     mem_limit: 128m
     cpus: 1
+    volumes:
+      - ./custom.css:/app/frontend/custom.css:ro
     env_file:
       - path: .env
         required: false
