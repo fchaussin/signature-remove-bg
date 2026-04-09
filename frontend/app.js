@@ -1190,7 +1190,10 @@ dom.apiCopyBtn.onclick = () => {
   const extra = b64 ? { output: 'base64' } : {};
   const params = buildExtractParams(extra);
   const curl = `curl -X POST "${location.origin}/extract?${params}" -F "file=@image.png"`;
-  navigator.clipboard.writeText(curl);
+  navigator.clipboard.writeText(curl).then(() => {
+    dom.apiCopyBtn.classList.add('copied');
+    setTimeout(() => dom.apiCopyBtn.classList.remove('copied'), 1500);
+  });
 };
 
 dom.apiBase64Toggle.onchange = syncApiDoc;
