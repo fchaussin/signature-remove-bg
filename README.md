@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security audit](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Docker](https://img.shields.io/docker/image-size/fchaussin/signature-remove-bg/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
+[![Docker image size](https://img.shields.io/docker/image-size/fchaussin/signature-remove-bg/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 [![Docker pulls](https://img.shields.io/docker/pulls/fchaussin/signature-remove-bg?logo=docker&label=pulls)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 
 ![Demo](frontend/screenshots/demo.gif)
