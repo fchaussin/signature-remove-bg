@@ -633,6 +633,7 @@ async def config():
     """Expose non-sensitive extraction defaults to the frontend."""
     return JSONResponse({
         "version":        APP_VERSION,
+        "warnings":       _build_config_warnings(),
         "mode":           DEFAULT_MODE,
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,

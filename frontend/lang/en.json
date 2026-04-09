@@ -67,5 +67,8 @@
   "error.UNKNOWN": "(error: unexpected error)",
   "error.FILE_TOO_LARGE": "(error: file too large, 50 MB max)",
   "error.IMAGE_TOO_LARGE": "(error: image dimensions too large, 10000px max)",
-  "a11y.skip": "Skip to main content"
+  "a11y.skip": "Skip to main content",
+  "warn.cors_wildcard": "CORS is set to wildcard (*) \u2014 restrict CORS_ORIGINS for production.",
+  "warn.low_concurrency": "MAX_CONCURRENT_OPS is very low \u2014 the service may be easily saturated.",
+  "warn.high_upload_limit": "MAX_UPLOAD_MB is above 100 MB \u2014 consider lowering it to prevent abuse."
 }

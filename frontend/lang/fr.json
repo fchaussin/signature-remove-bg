@@ -67,5 +67,8 @@
   "error.UNKNOWN": "(erreur : erreur inattendue)",
   "error.FILE_TOO_LARGE": "(erreur : fichier trop volumineux, 50 Mo max)",
   "error.IMAGE_TOO_LARGE": "(erreur : dimensions image trop grandes, 10000px max)",
-  "a11y.skip": "Aller au contenu principal"
+  "a11y.skip": "Aller au contenu principal",
+  "warn.cors_wildcard": "CORS est en wildcard (*) \u2014 restreignez CORS_ORIGINS en production.",
+  "warn.low_concurrency": "MAX_CONCURRENT_OPS est tr\u00e8s bas \u2014 le service peut \u00eatre facilement satur\u00e9.",
+  "warn.high_upload_limit": "MAX_UPLOAD_MB d\u00e9passe 100 Mo \u2014 envisagez de le r\u00e9duire pour \u00e9viter les abus."
 }

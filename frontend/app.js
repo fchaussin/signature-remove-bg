@@ -1305,6 +1305,21 @@ fetch('/config')
       if (el) el.textContent = 'v' + cfg.version;
     }
 
+    // Config warnings
+    if (Array.isArray(cfg.warnings) && cfg.warnings.length) {
+      const container = document.querySelector('.config-warnings');
+      if (container) {
+        container.innerHTML = '';
+        for (const w of cfg.warnings) {
+          if (!w.key || !w.level) continue;
+          const div = document.createElement('div');
+          div.className = `config-notice ${w.level}`;
+          div.textContent = i18n.t(w.key);
+          container.appendChild(div);
+        }
+      }
+    }
+
     if (VALID_MODES.has(cfg.mode)) {
       dom.param('mode').value = cfg.mode;
     }

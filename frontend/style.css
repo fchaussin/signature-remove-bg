@@ -95,6 +95,28 @@ h1 {
   vertical-align: super;
 }
 
+/* === Config warnings === */
+
+.config-warnings:empty { display: none; }
+
+.config-notice {
+  padding: .45rem .75rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  margin-bottom: .5rem;
+  border-left: 3px solid;
+}
+.config-notice.warning {
+  background: #fff8e1;
+  border-color: #f9a825;
+  color: #6d5300;
+}
+.config-notice.danger {
+  background: #fce4ec;
+  border-color: #e53935;
+  color: #7f0000;
+}
+
 /* === Shared === */
 
 button {

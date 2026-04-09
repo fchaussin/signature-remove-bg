@@ -40,8 +40,19 @@ class TestConfig:
         resp = client.get("/config")
         assert resp.status_code == 200
         data = resp.json()
-        for key in ("version", "mode", "format", "render_mode", "steps", "max_steps"):
+        for key in ("version", "warnings", "mode", "format", "render_mode", "steps", "max_steps"):
             assert key in data, f"Missing key: {key}"
+
+    def test_warnings_is_list(self, client):
+        data = client.get("/config").json()
+        assert isinstance(data["warnings"], list)
+
+    def test_warnings_have_level_and_key(self, client):
+        data = client.get("/config").json()
+        for w in data["warnings"]:
+            assert "level" in w
+            assert "key" in w
+            assert w["level"] in ("warning", "danger")
 
     def test_steps_structure(self, client):
         data = client.get("/config").json()
