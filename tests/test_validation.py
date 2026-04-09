@@ -15,6 +15,7 @@ from backend.app import (
     _clamp,
     _safe_log,
     _validate_and_open,
+    _build_config_warnings,
     MAX_UPLOAD_BYTES,
     MAX_IMAGE_DIMENSION,
     PARAM_RANGES,
@@ -259,3 +260,34 @@ class TestValidateAndOpen:
         img, _, err = asyncio.run(_validate_and_open(mock))
         assert err is None
         assert img is not None
+
+
+# ── _build_config_warnings ───────────────────────────────────────────────────
+
+class TestBuildConfigWarnings:
+    def test_returns_list(self):
+        result = _build_config_warnings()
+        assert isinstance(result, list)
+
+    def test_warnings_have_level_and_key(self):
+        for w in _build_config_warnings():
+            assert "level" in w
+            assert "key" in w
+            assert w["level"] in ("warning", "danger")
+            assert w["key"].startswith("warn.")
+
+    def test_cors_wildcard_detected(self):
+        """Default config has CORS=* which should trigger a danger warning."""
+        import backend.app as app_module
+        if "*" in app_module.CORS_ORIGINS:
+            keys = [w["key"] for w in _build_config_warnings()]
+            assert "warn.cors_wildcard" in keys
+
+    def test_respects_hide_flag(self):
+        import backend.app as app_module
+        original = app_module.HIDE_CONFIG_WARNINGS
+        try:
+            app_module.HIDE_CONFIG_WARNINGS = True
+            assert _build_config_warnings() == []
+        finally:
+            app_module.HIDE_CONFIG_WARNINGS = original

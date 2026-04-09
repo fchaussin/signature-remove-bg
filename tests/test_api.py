@@ -155,3 +155,38 @@ class TestAnalyze:
     def test_blue_image_analysis(self, client, blue_stroke_png_bytes):
         data = _upload(client, "/analyze", blue_stroke_png_bytes).json()
         assert data["mode"] in ("auto", "blue")
+
+
+# ── Edge cases ───────────────────────────────────────────────────────────────
+
+class TestEdgeCases:
+    def test_max_pipeline_steps(self, client, dark_stroke_png_bytes):
+        """7 steps (max) should be accepted."""
+        steps = ",".join(["threshold:200"] * 7)
+        resp = _upload(client, "/extract", dark_stroke_png_bytes, steps=steps)
+        assert resp.status_code == 200
+
+    def test_over_max_pipeline_falls_back(self, client, dark_stroke_png_bytes):
+        """8 steps (over max) → invalid, falls back to defaults, still 200."""
+        steps = ",".join(["threshold:200"] * 8)
+        resp = _upload(client, "/extract", dark_stroke_png_bytes, steps=steps)
+        assert resp.status_code == 200  # falls back to defaults
+
+    def test_bmp_input(self, client):
+        """BMP format accepted via /extract."""
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10), (30, 30, 30)).save(buf, format="BMP")
+        resp = _upload(client, "/extract", buf.getvalue(), filename="test.bmp")
+        assert resp.status_code == 200
+
+    def test_tiff_input(self, client):
+        """TIFF format accepted via /extract."""
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10), (30, 30, 30)).save(buf, format="TIFF")
+        resp = _upload(client, "/extract", buf.getvalue(), filename="test.tiff")
+        assert resp.status_code == 200
+
+    def test_empty_steps_uses_defaults(self, client, dark_stroke_png_bytes):
+        """Empty steps string → server defaults."""
+        resp = _upload(client, "/extract", dark_stroke_png_bytes, steps="")
+        assert resp.status_code == 200

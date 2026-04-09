@@ -57,6 +57,93 @@ class TestFlattenAlpha:
         out, _ = _flatten_alpha(img)
         assert out.getpixel((0, 0)) == (255, 255, 255)
 
+    def test_opaque_black_stays_black(self):
+        img = Image.new("RGBA", (10, 10), (0, 0, 0, 255))
+        out, had_alpha = _flatten_alpha(img)
+        assert had_alpha is True
+        assert out.getpixel((0, 0)) == (0, 0, 0)
+
+    def test_mixed_alpha_zones(self):
+        """Image with opaque ink + transparent background."""
+        img = Image.new("RGBA", (20, 20), (255, 255, 255, 0))  # transparent bg
+        px = np.array(img)
+        px[5:15, 5:15] = [30, 30, 30, 255]  # opaque dark ink
+        img = Image.fromarray(px)
+        out, had_alpha = _flatten_alpha(img)
+        assert had_alpha is True
+        # Background → white
+        assert out.getpixel((0, 0)) == (255, 255, 255)
+        # Ink → dark
+        r, g, b = out.getpixel((10, 10))
+        assert r < 50 and g < 50 and b < 50
+
+    def test_pa_mode(self):
+        """PA (palette + alpha) should be composited on white."""
+        rgba = Image.new("RGBA", (10, 10), (0, 0, 0, 128))
+        img = rgba.convert("PA")
+        out, had_alpha = _flatten_alpha(img)
+        assert out.mode == "RGB"
+        assert had_alpha is True
+
+
+# ── Alpha channel through full pipeline ──────────────────────────────────────
+
+class TestAlphaPipeline:
+    def test_rgba_ink_on_transparent_bg(self):
+        """RGBA image with dark ink on transparent bg → ink preserved after flatten + extract."""
+        img = Image.new("RGBA", (50, 50), (255, 255, 255, 0))
+        px = np.array(img)
+        px[15:35, 15:35] = [30, 30, 30, 255]
+        img = Image.fromarray(px)
+        result, had_alpha = extract_signature(img)
+        assert had_alpha is True
+        rpx = np.array(result)
+        # Centre (ink area) should have alpha > 0
+        assert rpx[25, 25, 3] > 0
+        # Corner (was transparent → flattened to white → transparent after extract)
+        assert rpx[0, 0, 3] == 0
+
+    def test_semi_transparent_ink(self):
+        """Semi-transparent dark ink on white bg → should still be detected."""
+        img = Image.new("RGBA", (50, 50), (255, 255, 255, 255))
+        px = np.array(img)
+        px[15:35, 15:35] = [30, 30, 30, 128]  # semi-transparent ink
+        img = Image.fromarray(px)
+        result, had_alpha = extract_signature(img)
+        assert had_alpha is True
+        rpx = np.array(result)
+        # After flatten: semi-transparent black on white → grey
+        # Grey should be detected by threshold
+        assert rpx[25, 25, 3] > 0
+
+    def test_fully_transparent_image(self):
+        """Fully transparent RGBA → flatten to white → fully transparent output."""
+        img = Image.new("RGBA", (30, 30), (0, 0, 0, 0))
+        result, had_alpha = extract_signature(img)
+        assert had_alpha is True
+        rpx = np.array(result)
+        assert rpx[:, :, 3].max() == 0
+
+    def test_blue_ink_on_transparent_bg(self):
+        """RGBA with blue ink on transparent bg → detected in auto mode."""
+        img = Image.new("RGBA", (50, 50), (255, 255, 255, 0))
+        px = np.array(img)
+        px[15:35, 15:35] = [30, 30, 180, 255]
+        img = Image.fromarray(px)
+        result, _ = extract_signature(img, mode=MODE_AUTO)
+        rpx = np.array(result)
+        assert rpx[25, 25, 3] > 0
+
+    def test_detect_presets_on_alpha_image(self):
+        """detect_presets on RGBA with ink → should return valid presets."""
+        img = Image.new("RGBA", (50, 50), (255, 255, 255, 0))
+        px = np.array(img)
+        px[15:35, 15:35] = [30, 30, 30, 255]
+        img = Image.fromarray(px)
+        presets = detect_presets(img)
+        assert presets["mode"] in (MODE_DARK, MODE_AUTO)
+        assert len(presets["steps"]) > 0
+
 
 # ── _step_threshold ──────────────────────────────────────────────────────────
 
@@ -279,3 +366,73 @@ class TestDetectPresets:
     def test_rgba_input_handled(self, rgba_image):
         presets = detect_presets(rgba_image)
         assert "mode" in presets
+
+
+# ── Edge cases ───────────────────────────────────────────────────────────────
+
+class TestEdgeCases:
+    def test_single_pixel_image(self):
+        """1x1 image must not crash (blur, gradient, etc.)."""
+        img = Image.new("RGB", (1, 1), (30, 30, 30))
+        result, _ = extract_signature(img)
+        assert result.size == (1, 1)
+        assert result.mode == "RGBA"
+
+    def test_single_pixel_detect(self):
+        img = Image.new("RGB", (1, 1), (30, 30, 30))
+        presets = detect_presets(img)
+        assert "mode" in presets
+
+    def test_all_black_image(self):
+        """All-black image → fully opaque (no division by zero)."""
+        img = Image.new("RGB", (50, 50), (0, 0, 0))
+        result, _ = extract_signature(img)
+        px = np.array(result)
+        assert px[:, :, 3].min() > 0, "All-black should be fully opaque"
+
+    def test_all_blue_image(self):
+        """All-blue image → detected in blue mode."""
+        img = Image.new("RGB", (50, 50), (20, 20, 180))
+        result, _ = extract_signature(img, mode=MODE_BLUE)
+        px = np.array(result)
+        assert px[:, :, 3].min() > 0, "All-blue should be opaque in blue mode"
+
+    def test_grayscale_input(self):
+        """Grayscale (mode L) image should be handled."""
+        img = Image.new("L", (50, 50), 128)
+        result, _ = extract_signature(img)
+        assert result.mode == "RGBA"
+        assert result.size == (50, 50)
+
+    def test_flatten_alpha_la_mode(self):
+        """LA (grayscale + alpha) image should be composited on white."""
+        img = Image.new("LA", (10, 10), (0, 128))
+        out, had_alpha = _flatten_alpha(img)
+        assert out.mode == "RGB"
+        assert had_alpha is True
+
+    def test_pipeline_order_matters(self, dark_stroke_image):
+        """Different step orderings should produce different results."""
+        steps_a = [("threshold", 200), ("smoothing", 50)]
+        steps_b = [("smoothing", 50), ("threshold", 200)]
+        result_a, _ = extract_signature(dark_stroke_image, steps=steps_a)
+        result_b, _ = extract_signature(dark_stroke_image, steps=steps_b)
+        px_a = np.array(result_a)[:, :, 3]
+        px_b = np.array(result_b)[:, :, 3]
+        assert not np.array_equal(px_a, px_b), "Step order should affect the result"
+
+    def test_repeated_effect(self):
+        """Same effect applied twice should differ from single application (RGB darkening)."""
+        img = Image.new("RGB", (100, 100), (255, 255, 255))
+        px = np.array(img)
+        px[40:60, 20:80] = [160, 160, 160]
+        img_a = Image.fromarray(px.copy())
+        img_b = Image.fromarray(px.copy())
+        steps_single = [("threshold", 220), ("contrast", 20)]
+        steps_double = [("threshold", 220), ("contrast", 10), ("contrast", 10)]
+        result_s, _ = extract_signature(img_a, steps=steps_single)
+        result_d, _ = extract_signature(img_b, steps=steps_double)
+        # Contrast darkens RGB cumulatively — two passes of 10% != one pass of 20%
+        rgb_s = np.array(result_s)[:, :, :3]
+        rgb_d = np.array(result_d)[:, :, :3]
+        assert not np.array_equal(rgb_s, rgb_d), "Repeated contrast should darken RGB differently"
