@@ -246,10 +246,11 @@ class TestValidateAndOpen:
     def test_accepted_content_types(self, tiny_png_bytes):
         for ct in ALLOWED_CONTENT_TYPES:
             mock = self._make_upload_file(tiny_png_bytes, "test.img", ct)
-            img, _, err = asyncio.run(_validate_and_open(mock))
-            # PNG bytes might not match all content types, but at least
-            # the content-type check itself should pass
-            # (open_image may still reject if magic bytes don't match ct)
+            _, _, err = asyncio.run(_validate_and_open(mock))
+            # PNG magic bytes match image/png; other content types pass the
+            # content-type check but open_image may still reject on magic bytes
+            if ct == "image/png":
+                assert err is None, f"PNG should be accepted with content-type {ct}"
 
     def test_none_content_type_accepted(self, tiny_png_bytes):
         """None content_type should skip the check (browser didn't send it)."""
