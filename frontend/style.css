@@ -462,7 +462,7 @@ input[type=range] {
   font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
   font-size: .78rem;
   margin-bottom: 1rem;
-  overflow: hidden;
+  overflow: visible;
   max-height: 500px;
   opacity: 1;
   transition: max-height .25s ease, opacity .2s ease, margin .25s ease;
@@ -472,6 +472,7 @@ input[type=range] {
   max-height: 0;
   opacity: 0;
   margin-bottom: 0;
+  overflow: hidden;
 }
 
 .api-doc-header {
@@ -521,7 +522,7 @@ input[type=range] {
   border-color: var(--color-primary);
 }
 .btn-api-copy.copied::after {
-  content: 'Copied!';
+  content: attr(data-confirm);
   position: absolute;
   bottom: calc(100% + 6px);
   left: 50%;

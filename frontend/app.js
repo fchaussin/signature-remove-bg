@@ -1191,6 +1191,7 @@ dom.apiCopyBtn.onclick = () => {
   const params = buildExtractParams(extra);
   const curl = `curl -X POST "${location.origin}/extract?${params}" -F "file=@image.png"`;
   navigator.clipboard.writeText(curl).then(() => {
+    dom.apiCopyBtn.dataset.confirm = i18n.t('btn.copied');
     dom.apiCopyBtn.classList.add('copied');
     setTimeout(() => dom.apiCopyBtn.classList.remove('copied'), 1500);
   });
