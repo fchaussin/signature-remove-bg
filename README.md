@@ -22,21 +22,17 @@ Self-hosted signature background remover — ultra-lightweight alternative to he
 
 > **Note**: processing time scales linearly with pixel count. A cropped signature (e.g. 500×200) processes in ~10 ms. A full A4 scan (e.g. 3000×4000) may take several seconds — use the built-in crop tool to isolate the signature area first (see [Workflow: full-page scan](#workflow-full-page-scan)).
 
-## Prerequisites
+## Get started
 
-- Docker + Docker Compose
-
-## Installation
-
-### From Docker Hub
+### Docker Hub (quickest)
 
 ```bash
 docker run -d -p 8000:8000 --name signature-remove-bg fchaussin/signature-remove-bg
 ```
 
-Multi-architecture image (amd64 + arm64).
+Open `http://localhost:8000` — that's it. Multi-architecture image (amd64 + arm64).
 
-### From source
+### From source (customizable)
 
 ```bash
 git clone https://github.com/fchaussin/signature-remove-bg.git
@@ -44,7 +40,7 @@ cd signature-remove-bg
 docker compose up -d
 ```
 
-The service is available at `http://localhost:8000` (the port is configurable via `.env`).
+Open `http://localhost:8000`. Configuration via `.env` file (see [Configuration](#configuration)).
 
 ## Web interface
 
