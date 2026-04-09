@@ -1191,9 +1191,14 @@ dom.apiCopyBtn.onclick = () => {
   const params = buildExtractParams(extra);
   const curl = `curl -X POST "${location.origin}/extract?${params}" -F "file=@image.png"`;
   navigator.clipboard.writeText(curl).then(() => {
-    dom.apiCopyBtn.dataset.confirm = i18n.t('btn.copied');
+    const msg = i18n.t('btn.copied');
+    dom.apiCopyBtn.dataset.confirm = msg;
+    dom.apiCopyBtn.setAttribute('aria-label', msg);
     dom.apiCopyBtn.classList.add('copied');
-    setTimeout(() => dom.apiCopyBtn.classList.remove('copied'), 1500);
+    setTimeout(() => {
+      dom.apiCopyBtn.classList.remove('copied');
+      dom.apiCopyBtn.setAttribute('aria-label', i18n.t('btn.copy'));
+    }, 1500);
   });
 };
 

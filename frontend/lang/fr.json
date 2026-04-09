@@ -66,5 +66,6 @@
   "error.NETWORK": "(erreur : probl\u00e8me r\u00e9seau)",
   "error.UNKNOWN": "(erreur : erreur inattendue)",
   "error.FILE_TOO_LARGE": "(erreur : fichier trop volumineux, 50 Mo max)",
-  "error.IMAGE_TOO_LARGE": "(erreur : dimensions image trop grandes, 10000px max)"
+  "error.IMAGE_TOO_LARGE": "(erreur : dimensions image trop grandes, 10000px max)",
+  "a11y.skip": "Aller au contenu principal"
 }

@@ -48,6 +48,25 @@
   --zoom-size: 400px;
 }
 
+/* === Skip link === */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  background: var(--color-primary);
+  color: #fff;
+  padding: .5rem 1rem;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  font-size: var(--font-sm);
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* === Base === */
 
 * {
@@ -227,7 +246,8 @@ input[type=range] {
   &:hover, &.dragover, &:focus-visible {
     border-color: var(--color-primary);
     background: var(--color-highlight);
-    outline: none;
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   & kbd {
@@ -580,7 +600,7 @@ input[type=range] {
 
 .api-doc-params th {
   text-align: left;
-  color: #6b7f95;
+  color: #8a9db0;
   font-weight: 500;
   font-size: .7rem;
   text-transform: uppercase;
@@ -596,8 +616,8 @@ input[type=range] {
 
 .api-doc-params td:nth-child(1) { color: #e8ecf1; }
 .api-doc-params td:nth-child(2) { color: #49cc90; }
-.api-doc-params td:nth-child(3) { color: #6b7f95; font-size: .7rem; }
-.api-doc-params td:nth-child(4) { color: #6b7f95; font-size: .7rem; }
+.api-doc-params td:nth-child(3) { color: #8a9db0; font-size: .7rem; }
+.api-doc-params td:nth-child(4) { color: #8a9db0; font-size: .7rem; }
 
 .api-doc-body,
 .api-doc-response {
@@ -614,7 +634,7 @@ input[type=range] {
 }
 
 .api-doc-body-label {
-  color: #6b7f95;
+  color: #8a9db0;
   font-size: .7rem;
   text-transform: uppercase;
   letter-spacing: .04em;

@@ -96,7 +96,7 @@ class FxSlot {
     el.innerHTML = `
       <span class="rack-handle" aria-label="Drag to reorder" data-icon="grip" data-icon-size="14"></span>
       <span class="rack-icon" data-icon="${meta.icon}" data-icon-size="16"></span>
-      <label class="rack-toggle"><input type="checkbox"${meta.defaultOn ? ' checked' : ''}><span class="rack-toggle-mark"></span></label>
+      <label class="rack-toggle"><input type="checkbox"${meta.defaultOn ? ' checked' : ''} aria-label="Enable ${meta.label}"><span class="rack-toggle-mark"></span></label>
       <div class="rack-body">
         <label><span class="rack-label"></span> <span data-display="${this.effect}"></span></label>
         <input type="range" data-param="${this.effect}" min="${meta.min}" max="${meta.max}" value="${meta.off}">

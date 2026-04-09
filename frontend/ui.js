@@ -113,6 +113,7 @@ function initCompareSlider(els) {
     pct = Math.max(0, Math.min(100, pct));
     els.before.style.width = pct + '%';
     els.handle.style.left  = pct + '%';
+    els.handle.setAttribute('aria-valuenow', Math.round(pct));
     // The before image must span the full slider width so it aligns with the after image
     if (pct > 0) {
       els.beforeImg.style.width = els.slider.offsetWidth + 'px';

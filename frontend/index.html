@@ -11,10 +11,12 @@
   <link rel="stylesheet" href="/static/custom.css">
 </head>
 <body>
+  <a href="#editor" class="skip-link" data-i18n="a11y.skip">Skip to main content</a>
+  <main>
   <h1 data-i18n="app.title">Signature Extractor</h1>
 
   <!-- Upload -->
-  <div id="dropzone" class="drop-zone" role="button" tabindex="0">
+  <div id="dropzone" class="drop-zone" role="button" tabindex="0" aria-label="Upload image">
     <span data-i18n-html="dropzone.hint">Drop a scan, capture or image here,<br> <strong>click to choose a file</strong><br> or <kbd>Ctrl+V</kbd> anywhere to paste</span>
     <input type="file" accept="image/*" hidden class="file-input">
   </div>
@@ -47,9 +49,9 @@
           <select class="preset-select" data-param="preset" aria-label="Presets">
             <option value="" data-i18n="preset.default">Default</option>
           </select>
-          <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" data-icon="save" data-icon-size="14"></button>
-          <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" data-icon="close" data-icon-size="14"></button>
-          <button class="btn-preset btn-api-toggle" data-action="toggle-api" title="API" data-icon="code" data-icon-size="14"></button>
+          <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" aria-label="Save preset" data-icon="save" data-icon-size="14"></button>
+          <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" aria-label="Delete preset" data-icon="close" data-icon-size="14"></button>
+          <button class="btn-preset btn-api-toggle" data-action="toggle-api" title="API" aria-label="Toggle API documentation" data-icon="code" data-icon-size="14"></button>
         </div>
         <div class="field-group render-group">
           <label class="live-toggle" data-i18n-title="render.live_title" title="Live preview (slow on large images)">
@@ -67,8 +69,8 @@
       <div class="api-doc-header">
         <span class="api-doc-method">POST</span>
         <code class="api-doc-endpoint"></code>
-        <button class="btn-api-copy" data-action="copy-curl" data-icon="clipboard" data-icon-size="12" data-i18n-title="btn.copy"></button>
-        <button class="btn-api-expand" data-action="expand-api" data-icon="chevron-down" data-icon-size="14"></button>
+        <button class="btn-api-copy" data-action="copy-curl" data-icon="clipboard" data-icon-size="12" data-i18n-title="btn.copy" aria-label="Copy cURL command"></button>
+        <button class="btn-api-expand" data-action="expand-api" data-icon="chevron-down" data-icon-size="14" aria-label="Expand API details"></button>
       </div>
       <div class="api-doc-details collapsed">
         <table class="api-doc-params">
@@ -99,11 +101,11 @@
           <option value="threshold" data-i18n="threshold.name">Luminosity threshold</option>
           <option value="blue_tolerance" data-i18n="blue_tolerance.name">Blue tolerance</option>
         </select>
-        <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect">
+        <button class="btn-add-slot" data-action="add-slot" data-i18n-title="rack.add_title" title="Add effect" aria-label="Add effect">
           <span data-icon="plus" data-icon-size="14"></span>
         </button>
         <span class="rack-count"></span>
-        <button class="btn-rack-collapse" data-action="toggle-rack" data-i18n-title="rack.collapse_title" title="Collapse effects">
+        <button class="btn-rack-collapse" data-action="toggle-rack" data-i18n-title="rack.collapse_title" title="Collapse effects" aria-label="Collapse effects">
           <span data-icon="chevron-down" data-icon-size="14"></span>
         </button>
       </div>
@@ -130,7 +132,7 @@
           <span class="progress-wrap" aria-hidden="true"><span class="progress-bar"></span></span>
           <span class="panel-tools">
             <label class="compare-toggle" title="Before / After">
-              <input type="checkbox" checked data-action="toggle-compare">
+              <input type="checkbox" checked data-action="toggle-compare" aria-label="Toggle before/after comparison">
               <span class="compare-toggle-icon" data-icon="columns" data-icon-size="16"></span>
             </label>
             <button class="panel-tool-btn" data-action="zoom" aria-label="Zoom" title="Zoom 1:1" data-icon="search" data-icon-size="14"></button>
@@ -143,7 +145,7 @@
           <div class="compare-before">
             <img class="compare-before-img" alt="Original">
           </div>
-          <div class="compare-handle" aria-label="Comparison slider" role="slider" tabindex="0">
+          <div class="compare-handle" aria-label="Comparison slider" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div class="compare-line"></div>
             <div class="compare-knob" data-icon="arrows-h" data-icon-size="14"></div>
           </div>
@@ -162,6 +164,8 @@
       </div>
     </div>
   </div>
+
+  </main>
 
   <!-- Zoom popup -->
   <dialog id="zoom" class="dialog dialog--dark" aria-label="Image zoom">
