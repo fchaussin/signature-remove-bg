@@ -1,5 +1,5 @@
 {
-  "criteria": ["fond", "encre", "bords", "bruit", "contraste"],
+  "criteria": ["background", "ink", "edges", "noise", "contrast"],
   "scale": "1-5 (step 0.5)",
   "context_factors": ["resolution", "source_quality"],
   "notes": "Scores reflect result quality relative to what the source allows. Low resolution inherently limits edge sharpness and detail — this is a physical constraint, not an algorithm defect.",
@@ -8,22 +8,78 @@
       "version": "0.3.0",
       "date": "2026-04-10",
       "global_avg": 3.99,
+      "author": "user",
       "comment": "Baseline scoring. Lined paper is the main weakness (1.2–1.8). Clean/noisy sources score well (4.0–5.0)."
+    },
+    {
+      "version": "0.3.0",
+      "date": "2026-04-10",
+      "global_avg": 3.88,
+      "author": "claude",
+      "comment": "Independent re-scoring. Slightly stricter on edges and contrast for low-res/faint sources. Same conclusions: lined paper fails, clean sources excel."
     }
   ],
   "version": "0.3.0",
   "images": {
-    "dark_clean_hires":    { "fond": 5,   "encre": 5,   "bords": 5,   "bruit": 5,   "contraste": 5,   "avg": 5.0, "resolution": "high",  "source_quality": "clean" },
-    "dark_clean_lowres":   { "fond": 5,   "encre": 4,   "bords": 2,   "bruit": 5,   "contraste": 5,   "avg": 4.2, "resolution": "low",   "source_quality": "clean" },
-    "dark_faint_grey_bg":  { "fond": 5,   "encre": 3,   "bords": 3,   "bruit": 5,   "contraste": 4,   "avg": 4.0, "resolution": "mid",   "source_quality": "faint" },
-    "dark_lined_paper":    { "fond": 1,   "encre": 2,   "bords": 2,   "bruit": 2,   "contraste": 2,   "avg": 1.8, "resolution": "high",  "source_quality": "lined" },
-    "dark_lined_lowres":   { "fond": 1,   "encre": 1,   "bords": 1,   "bruit": 1,   "contraste": 2,   "avg": 1.2, "resolution": "low",   "source_quality": "lined" },
-    "dark_noisy_midres":   { "fond": 5,   "encre": 4.5, "bords": 5,   "bruit": 5,   "contraste": 5,   "avg": 4.9, "resolution": "mid",   "source_quality": "noisy" },
-    "dark_noisy_lowres":   { "fond": 5,   "encre": 2,   "bords": 3,   "bruit": 4,   "contraste": 3,   "avg": 3.4, "resolution": "low",   "source_quality": "noisy" },
-    "blue_clean_hires":    { "fond": 5,   "encre": 5,   "bords": 5,   "bruit": 4.5, "contraste": 5,   "avg": 4.9, "resolution": "high",  "source_quality": "clean" },
-    "blue_clean_lowres":   { "fond": 5,   "encre": 5,   "bords": 3.5, "bruit": 4,   "contraste": 5,   "avg": 4.5, "resolution": "low",   "source_quality": "clean" },
-    "blue_faint_tinted_bg":{ "fond": 5,   "encre": 3,   "bords": 3.5, "bruit": 4.5, "contraste": 5,   "avg": 4.2, "resolution": "mid",   "source_quality": "tinted" },
-    "blue_bright_lowres":  { "fond": 5,   "encre": 4,   "bords": 3,   "bruit": 4,   "contraste": 5,   "avg": 4.2, "resolution": "low",   "source_quality": "clean" },
-    "blue_multi_midres":   { "fond": 5,   "encre": 4,   "bords": 4,   "bruit": 5,   "contraste": 5,   "avg": 4.6, "resolution": "mid",   "source_quality": "clean" }
+    "dark_clean_hires": {
+      "resolution": "high", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 5,   "edges": 5,   "noise": 5,   "contrast": 5,   "avg": 5.0 },
+      "claude": { "background": 5,   "ink": 5,   "edges": 5,   "noise": 5,   "contrast": 5,   "avg": 5.0 }
+    },
+    "dark_clean_lowres": {
+      "resolution": "low", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 4,   "edges": 2,   "noise": 5,   "contrast": 5,   "avg": 4.2 },
+      "claude": { "background": 5,   "ink": 4,   "edges": 2.5, "noise": 5,   "contrast": 5,   "avg": 4.3 }
+    },
+    "dark_faint_grey_bg": {
+      "resolution": "mid", "source_quality": "faint",
+      "user":   { "background": 5,   "ink": 3,   "edges": 3,   "noise": 5,   "contrast": 4,   "avg": 4.0 },
+      "claude": { "background": 5,   "ink": 3,   "edges": 3,   "noise": 5,   "contrast": 3.5, "avg": 3.9 }
+    },
+    "dark_lined_paper": {
+      "resolution": "high", "source_quality": "lined",
+      "user":   { "background": 1,   "ink": 2,   "edges": 2,   "noise": 2,   "contrast": 2,   "avg": 1.8 },
+      "claude": { "background": 1,   "ink": 2,   "edges": 2,   "noise": 1.5, "contrast": 2,   "avg": 1.7 }
+    },
+    "dark_lined_lowres": {
+      "resolution": "low", "source_quality": "lined",
+      "user":   { "background": 1,   "ink": 1,   "edges": 1,   "noise": 1,   "contrast": 2,   "avg": 1.2 },
+      "claude": { "background": 1,   "ink": 1,   "edges": 1,   "noise": 1,   "contrast": 1.5, "avg": 1.1 }
+    },
+    "dark_noisy_midres": {
+      "resolution": "mid", "source_quality": "noisy",
+      "user":   { "background": 5,   "ink": 4.5, "edges": 5,   "noise": 5,   "contrast": 5,   "avg": 4.9 },
+      "claude": { "background": 4.5, "ink": 4.5, "edges": 4.5, "noise": 4.5, "contrast": 5,   "avg": 4.6 }
+    },
+    "dark_noisy_lowres": {
+      "resolution": "low", "source_quality": "noisy",
+      "user":   { "background": 5,   "ink": 2,   "edges": 3,   "noise": 4,   "contrast": 3,   "avg": 3.4 },
+      "claude": { "background": 5,   "ink": 2,   "edges": 2.5, "noise": 3.5, "contrast": 2.5, "avg": 3.1 }
+    },
+    "blue_clean_hires": {
+      "resolution": "high", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 5,   "edges": 5,   "noise": 4.5, "contrast": 5,   "avg": 4.9 },
+      "claude": { "background": 5,   "ink": 4.5, "edges": 5,   "noise": 4.5, "contrast": 5,   "avg": 4.8 }
+    },
+    "blue_clean_lowres": {
+      "resolution": "low", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 5,   "edges": 3.5, "noise": 4,   "contrast": 5,   "avg": 4.5 },
+      "claude": { "background": 5,   "ink": 4.5, "edges": 3.5, "noise": 4,   "contrast": 5,   "avg": 4.4 }
+    },
+    "blue_faint_tinted_bg": {
+      "resolution": "mid", "source_quality": "tinted",
+      "user":   { "background": 5,   "ink": 3,   "edges": 3.5, "noise": 4.5, "contrast": 5,   "avg": 4.2 },
+      "claude": { "background": 5,   "ink": 3.5, "edges": 3.5, "noise": 4.5, "contrast": 4.5, "avg": 4.2 }
+    },
+    "blue_bright_lowres": {
+      "resolution": "low", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 4,   "edges": 3,   "noise": 4,   "contrast": 5,   "avg": 4.2 },
+      "claude": { "background": 5,   "ink": 4,   "edges": 3,   "noise": 4,   "contrast": 5,   "avg": 4.2 }
+    },
+    "blue_multi_midres": {
+      "resolution": "mid", "source_quality": "clean",
+      "user":   { "background": 5,   "ink": 4,   "edges": 4,   "noise": 5,   "contrast": 5,   "avg": 4.6 },
+      "claude": { "background": 5,   "ink": 3.5, "edges": 4,   "noise": 5,   "contrast": 5,   "avg": 4.5 }
+    }
   }
 }
