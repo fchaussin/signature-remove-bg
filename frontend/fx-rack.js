@@ -50,7 +50,7 @@ class FxRack {
 
     this._addBtn.addEventListener('click', () => {
       const effect = this._effectSelect.value;
-      if (effect) this.addSlot(effect);
+      if (effect) this.addSlot(effect, undefined, true);
     });
 
     this._collapseBtn.addEventListener('click', () => {
