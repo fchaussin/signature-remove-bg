@@ -16,6 +16,7 @@ from backend.app import (
     _safe_log,
     _validate_and_open,
     _build_config_warnings,
+    _is_local_ip,
     MAX_UPLOAD_BYTES,
     MAX_IMAGE_DIMENSION,
     PARAM_RANGES,
@@ -276,12 +277,20 @@ class TestBuildConfigWarnings:
             assert w["level"] in ("warning", "danger")
             assert w["key"].startswith("warn.")
 
-    def test_cors_wildcard_detected(self):
-        """Default config has CORS=* which should trigger a danger warning."""
+    def test_cors_wildcard_detected_for_remote_ip(self):
+        """CORS=* should trigger a danger warning for non-local clients."""
         import backend.app as app_module
         if "*" in app_module.CORS_ORIGINS:
-            keys = [w["key"] for w in _build_config_warnings()]
+            keys = [w["key"] for w in _build_config_warnings("8.8.8.8")]
             assert "warn.cors_wildcard" in keys
+
+    def test_cors_wildcard_hidden_for_local_ip(self):
+        """CORS=* warning should NOT appear for local/private IPs."""
+        import backend.app as app_module
+        if "*" in app_module.CORS_ORIGINS:
+            for ip in ("127.0.0.1", "::1", "192.168.1.10", "10.0.0.1", "172.16.0.5"):
+                keys = [w["key"] for w in _build_config_warnings(ip)]
+                assert "warn.cors_wildcard" not in keys, f"CORS warning should be hidden for {ip}"
 
     def test_respects_hide_flag(self):
         import backend.app as app_module

@@ -23,6 +23,7 @@ Sections
 import asyncio
 import base64
 import io
+import ipaddress
 import logging
 import os
 import re
@@ -149,12 +150,23 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 HIDE_CONFIG_WARNINGS = os.environ.get("HIDE_CONFIG_WARNINGS", "false").lower() in ("true", "1", "yes")
 
 
-def _build_config_warnings() -> list[dict]:
+def _is_local_ip(ip: str | None) -> bool:
+    """Return True if *ip* looks like a local/private/loopback address."""
+    if not ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return addr.is_loopback or addr.is_private or addr.is_link_local
+
+
+def _build_config_warnings(client_ip: str | None = None) -> list[dict]:
     """Return a list of {level, key} warnings about the current configuration."""
     if HIDE_CONFIG_WARNINGS:
         return []
     warnings = []
-    if "*" in CORS_ORIGINS:
+    if "*" in CORS_ORIGINS and not _is_local_ip(client_ip):
         warnings.append({"level": "danger", "key": "warn.cors_wildcard"})
     if MAX_CONCURRENT_OPS < 2:
         warnings.append({"level": "warning", "key": "warn.low_concurrency"})
@@ -630,11 +642,12 @@ async def health():
 
 
 @app.get("/config")
-async def config():
+async def config(request: Request):
     """Expose non-sensitive extraction defaults to the frontend."""
+    client_ip = request.client.host if request.client else None
     return JSONResponse({
         "version":        APP_VERSION,
-        "warnings":       _build_config_warnings(),
+        "warnings":       _build_config_warnings(client_ip),
         "mode":           DEFAULT_MODE,
         "format":         DEFAULT_FORMAT,
         "render_mode":    RENDER_MODE,
