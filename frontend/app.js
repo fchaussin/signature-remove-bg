@@ -331,6 +331,10 @@ function checkResolution() {
   const ratio = naturalW / dom.originalImg.clientWidth;
   const pixels = naturalW * naturalH;
 
+  // Show crop button only for images larger than 400×400
+  const cropBtn = dom.originalPanel.querySelector('[data-action="crop"]');
+  if (cropBtn) cropBtn.style.display = (naturalW > 400 || naturalH > 400) ? '' : 'none';
+
   dom.resHint.style.display = 'none';
   dom.resHint.className = 'res-hint';
 
