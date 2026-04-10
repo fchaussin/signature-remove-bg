@@ -880,10 +880,16 @@ async def analyze(file: UploadFile = File(...)):
     })
 
 
+_CACHE_BUST = f"?_={int(__import__('time').time())}"  # set once at startup
+
+
 @app.get("/", response_class=HTMLResponse)
 async def ui():
-    """Serve the minimal web UI."""
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    """Serve the minimal web UI with cache-busted static assets."""
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    html = html.replace('.css"', f'.css{_CACHE_BUST}"')
+    html = html.replace('.js"', f'.js{_CACHE_BUST}"')
+    return html
 
 
 # ---------------------------------------------------------------------------
