@@ -46,6 +46,7 @@
   "status.analyzing": "(analyzing\u2026)",
   "btn.auto_detect": "\u2726 Auto",
   "btn.auto_detect_title": "Detect optimal settings",
+  "btn.settings_title": "Toggle settings",
   "preset.default": "Default",
   "preset.save_title": "Save preset",
   "preset.save_btn": "Save",

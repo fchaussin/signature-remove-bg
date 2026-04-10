@@ -23,46 +23,48 @@
   </div>
 
   <!-- Editor -->
-  <div id="editor" class="editor">
+  <div id="editor" class="editor settings-hidden">
+    <div class="auto-bar">
+      <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
+      <button class="btn-settings-toggle" data-action="toggle-settings" data-i18n-title="btn.settings_title" title="Toggle settings" aria-label="Toggle settings">
+        <span data-icon="gear" data-icon-size="16"></span>
+      </button>
+    </div>
     <div class="controls">
-      <div class="col">
-        <div class="field-group">
-          <div class="field">
-            <label data-i18n="mode.label">Mode</label>
-            <select data-param="mode">
-              <option value="auto" data-i18n="mode.auto">Auto (dark + blue)</option>
-              <option value="dark" data-i18n="mode.dark">Dark only</option>
-              <option value="blue" data-i18n="mode.blue">Blue only</option>
-            </select>
-          </div>
-          <div class="field">
-            <label data-i18n="format.label">Format</label>
-            <select data-param="format">
-              <option value="png">PNG</option>
-              <option value="webp">WebP</option>
-            </select>
-          </div>
-        </div>
+      <div class="ctrl-group">
+        <label class="ctrl-label" data-i18n="mode.label">Mode</label>
+        <select data-param="mode">
+          <option value="auto" data-i18n="mode.auto">Auto (dark + blue)</option>
+          <option value="dark" data-i18n="mode.dark">Dark only</option>
+          <option value="blue" data-i18n="mode.blue">Blue only</option>
+        </select>
       </div>
-      <div class="col">
-        <div class="field-group preset-group">
-          <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
-          <select class="preset-select" data-param="preset" aria-label="Presets">
-            <option value="" data-i18n="preset.default">Default</option>
-          </select>
-          <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" aria-label="Save preset" data-icon="save" data-icon-size="14"></button>
-          <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" aria-label="Delete preset" data-icon="close" data-icon-size="14"></button>
-          <button class="btn-preset btn-api-toggle" data-action="toggle-api" title="API" aria-label="Toggle API documentation" data-icon="code" data-icon-size="14"></button>
-        </div>
-        <div class="field-group render-group">
-          <label class="live-toggle" data-i18n-title="render.live_title" title="Live preview (slow on large images)">
-            <input type="checkbox" checked data-action="toggle-live">
-            <span class="live-toggle-label" data-i18n="render.live">Live</span>
-          </label>
-          <button class="btn-render" data-action="render" data-i18n-title="render.btn_title" title="Render (Ctrl+Enter)" hidden>
-            <span data-icon="play" data-icon-size="14"></span> <span data-i18n="render.btn">Render</span>
-          </button>
-        </div>
+      <div class="ctrl-sep"></div>
+      <div class="ctrl-group">
+        <label class="ctrl-label" data-i18n="format.label">Format</label>
+        <select data-param="format">
+          <option value="png">PNG</option>
+          <option value="webp">WebP</option>
+        </select>
+      </div>
+      <div class="ctrl-sep"></div>
+      <div class="ctrl-group preset-group">
+        <select class="preset-select" data-param="preset" aria-label="Presets">
+          <option value="" data-i18n="preset.default">Default</option>
+        </select>
+        <button class="btn-preset" data-action="save-preset" data-i18n-title="preset.save_title" title="Save preset" aria-label="Save preset" data-icon="save" data-icon-size="14"></button>
+        <button class="btn-preset btn-preset--danger" data-action="delete-preset" data-i18n-title="preset.delete_title" title="Delete preset" aria-label="Delete preset" data-icon="close" data-icon-size="14"></button>
+      </div>
+      <div class="ctrl-group ctrl-end">
+        <button class="btn-api-toggle" data-action="toggle-api" aria-label="Toggle API documentation"><span data-icon="code" data-icon-size="12"></span> API</button>
+        <div class="ctrl-sep"></div>
+        <label class="live-toggle" data-i18n-title="render.live_title" title="Live preview (slow on large images)">
+          <input type="checkbox" checked data-action="toggle-live">
+          <span class="live-toggle-label" data-i18n="render.live">Live</span>
+        </label>
+        <button class="btn-render" data-action="render" data-i18n-title="render.btn_title" title="Render (Ctrl+Enter)" hidden>
+          <span data-icon="play" data-icon-size="14"></span> <span data-i18n="render.btn">Render</span>
+        </button>
       </div>
     </div>
 

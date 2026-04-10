@@ -229,6 +229,7 @@ let fxRack = null;
 function setBusy(busy) {
   dom.editor.classList.toggle('busy', busy);
   dom.extractedPanel.setAttribute('aria-busy', busy);
+  dom.autoDetectBtn.setAttribute('aria-busy', busy);
   if (!busy) {
     dom.progressBar.style.width = '';
     dom.progressBar.classList.remove('indeterminate');
@@ -1383,6 +1384,13 @@ dom.param('format').onchange = () => {
 
 // Auto-detect button
 dom.autoDetectBtn.onclick = applyPresets;
+
+// Settings toggle — show/hide controls & FX rack
+const settingsToggleBtn = dom.editor.querySelector('[data-action="toggle-settings"]');
+settingsToggleBtn.onclick = () => {
+  const hidden = dom.editor.classList.toggle('settings-hidden');
+  settingsToggleBtn.classList.toggle('active', !hidden);
+};
 
 // Effects rack — dynamic slots, add/remove, drag & drop
 fxRack = new FxRack(document.querySelector('.rack'), {

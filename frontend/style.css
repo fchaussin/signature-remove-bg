@@ -221,7 +221,8 @@ button {
 .busy .actions button,
 .busy .bg-swatch,
 .busy .compare-toggle input,
-.busy .panel-tool-btn {
+.busy .panel-tool-btn,
+.busy .btn-auto-detect {
   pointer-events: none;
   opacity: .45;
 }
@@ -336,27 +337,40 @@ input[type=range] {
 
 .controls {
   display: flex;
-  gap: 1rem;
+  gap: .75rem;
   flex-wrap: wrap;
-  align-items: start;
-  margin-bottom: 1rem;
+  align-items: center;
+  margin-bottom: .75rem;
   background: var(--color-surface);
-  padding: 1rem;
+  padding: .6rem .8rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   position: relative;
   overflow: hidden;
 }
 
-.controls > .col {
+.ctrl-group {
   display: flex;
-  flex-direction: column;
-  gap: .5rem;
+  align-items: center;
+  gap: .35rem;
 }
 
-.controls > .col:last-child {
+.ctrl-label {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.ctrl-sep {
+  width: 1px;
+  height: 1.4rem;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.ctrl-end {
   margin-left: auto;
-  align-items: flex-end;
 }
 
 /* Indeterminate progress bar as bottom border during extraction */
@@ -388,47 +402,154 @@ input[type=range] {
   .busy .controls::after { animation: none; width: 100%; transform: none; opacity: .4; }
 }
 
-/* === Auto-detect button === */
-
-.btn-auto-detect {
-  margin-left: auto;
-  align-self: center;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  font-size: var(--font-sm);
-  padding: .4rem .8rem;
-  transition: color .2s, border-color .2s, box-shadow .2s;
-
-  &:hover { color: var(--color-primary); border-color: var(--color-primary); }
+/* Hide controls, rack & API toggle when settings panel is collapsed */
+.editor.settings-hidden > .controls,
+.editor.settings-hidden > .rack,
+.editor.settings-hidden > .api-doc {
+  display: none;
 }
 
-@keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(74, 144, 217, .5); }
-  70%  { box-shadow: 0 0 0 6px rgba(74, 144, 217, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(74, 144, 217, 0); }
+/* API toggle — discrete link, sits in rack header */
+.btn-api-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: .7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .1rem .3rem;
+  border-radius: var(--radius-sm);
+  transition: color .15s;
+
+  &:hover { color: var(--color-primary); }
+  &.active { color: var(--color-primary); }
+}
+
+/* === Auto bar (auto-detect + settings toggle) === */
+
+.auto-bar {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.btn-settings-toggle {
+  flex-shrink: 0;
+  width: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-dark);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: rgba(255, 255, 255, .7);
+  cursor: pointer;
+  transition: color .2s, background .2s, transform .3s;
+
+  &:hover {
+    color: #fff;
+    background: #444;
+  }
+
+  &.active {
+    color: #fff;
+    background: var(--color-primary);
+  }
+
+  & .icon { transition: transform .3s; }
+  &.active .icon { transform: rotate(90deg); }
+}
+
+/* === Auto-detect button (full-width, accent, glow) === */
+
+.btn-auto-detect {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: .65rem 1rem;
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), #6a5acd);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 8px rgba(74, 144, 217, .25);
+  cursor: pointer;
+  transition: box-shadow .3s, transform .15s, filter .2s;
+  overflow: hidden;
+  z-index: 0;
+
+  &:hover {
+    box-shadow: 0 0 16px rgba(74, 144, 217, .45), 0 0 4px rgba(106, 90, 205, .3);
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+  }
+
+  &:active {
+    transform: translateY(0);
+    filter: brightness(.95);
+  }
+}
+
+/* Spinning conic-gradient border during busy state */
+
+@keyframes border-spin {
+  to { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.busy .btn-auto-detect {
+  --border-angle: 0deg;
+  opacity: .7;
+  cursor: default;
+  filter: saturate(.6);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      var(--color-primary),
+      #6a5acd,
+      #b4a0ff,
+      var(--color-primary)
+    ) border-box;
+  color: var(--color-text-secondary);
+  animation: border-spin 2s linear infinite;
+  box-shadow: none;
+}
+
+.busy .btn-auto-detect:hover {
+  transform: none;
+  filter: saturate(.6);
+}
+
+@keyframes glow-pulse {
+  0%   { box-shadow: 0 0 8px rgba(74, 144, 217, .25); }
+  50%  { box-shadow: 0 0 18px rgba(74, 144, 217, .5), 0 0 6px rgba(106, 90, 205, .35); }
+  100% { box-shadow: 0 0 8px rgba(74, 144, 217, .25); }
 }
 
 .btn-auto-detect.ready {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  animation: pulse-ring 1.5s ease-out 3;
+  animation: glow-pulse 2s ease-in-out 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .btn-auto-detect.ready { animation: none; }
+  .busy .btn-auto-detect { animation: none; }
 }
 
 /* === Preset group (auto + select + save/delete) === */
 
 .preset-group {
-  gap: .4rem;
-}
-
-.render-group {
-  gap: .4rem;
-  justify-content: flex-end;
-  align-self: end;
+  gap: .35rem;
 }
 
 .preset-select {
@@ -637,11 +758,6 @@ input[type=range] {
 }
 .btn-api-expand.expanded {
   transform: rotate(180deg);
-}
-
-.btn-api-toggle.active {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
 }
 
 .api-doc-details {
@@ -1315,8 +1431,9 @@ input[type=range] {
 
 @media (max-width: 640px) {
   body { padding: 1rem; }
-  .controls { flex-direction: column; gap: .75rem; }
-  .controls > .col:last-child { margin-left: 0; align-items: flex-start; width: 100%;}
+  .controls { gap: .5rem; }
+  .ctrl-sep { display: none; }
+  .ctrl-end { margin-left: 0; }
   .previews { grid-template-columns: 1fr; }
 
   .zoom-viewport {

@@ -46,6 +46,7 @@
   "status.analyzing": "(analyse\u2026)",
   "btn.auto_detect": "\u2726 Auto",
   "btn.auto_detect_title": "D\u00e9tecter les r\u00e9glages optimaux",
+  "btn.settings_title": "Afficher/masquer les r\u00e9glages",
   "preset.default": "D\u00e9faut",
   "preset.save_title": "Sauvegarder le preset",
   "preset.save_btn": "Sauvegarder",
