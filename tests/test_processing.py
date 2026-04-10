@@ -367,6 +367,63 @@ class TestDetectPresets:
         presets = detect_presets(rgba_image)
         assert "mode" in presets
 
+    def test_contrast_reduced_when_high_natural_gap(self):
+        """Well-separated ink/bg (large gap) should yield low contrast boost."""
+        img = Image.new("RGB", (200, 200), (255, 255, 255))
+        px = img.load()
+        for x in range(40, 160):
+            for y in range(80, 120):
+                px[x, y] = (80, 80, 80)  # dark ink, gap ~175
+        presets = detect_presets(img)
+        contrast = next(s["value"] for s in presets["steps"] if s["effect"] == "contrast")
+        assert contrast < 15, f"High-gap image should have low contrast, got {contrast}"
+
+    def test_contrast_reduced_when_noisy_bg(self):
+        """Noisy background should reduce contrast to avoid amplifying grain."""
+        rng = np.random.RandomState(42)
+        # Noisy grey background (std ~12)
+        bg = rng.normal(210, 12, (200, 200)).clip(0, 255).astype(np.uint8)
+        px = np.stack([bg, bg, bg], axis=-1)
+        # Faint ink stripe
+        px[80:120, 40:160] = [130, 130, 130]
+        img = Image.fromarray(px)
+        presets = detect_presets(img)
+        contrast = next(s["value"] for s in presets["steps"] if s["effect"] == "contrast")
+        assert contrast < 60, f"Noisy bg should cap contrast, got {contrast}"
+
+    def test_contrast_high_when_faint_ink_clean_bg(self):
+        """Faint ink on a clean white background with small gap should get high contrast."""
+        img = Image.new("RGB", (200, 200), (255, 255, 255))
+        px = img.load()
+        for x in range(40, 160):
+            for y in range(80, 120):
+                px[x, y] = (170, 170, 170)  # very faint ink
+        presets = detect_presets(img)
+        contrast = next(s["value"] for s in presets["steps"] if s["effect"] == "contrast")
+        assert contrast >= 30, f"Faint ink on clean bg should get contrast boost, got {contrast}"
+
+    def test_smoothing_floor_on_noisy_bg(self):
+        """Noisy background should raise the smoothing floor."""
+        rng = np.random.RandomState(42)
+        bg = rng.normal(220, 10, (200, 200)).clip(0, 255).astype(np.uint8)
+        px = np.stack([bg, bg, bg], axis=-1)
+        px[80:120, 40:160] = [30, 30, 30]
+        img = Image.fromarray(px)
+        presets = detect_presets(img)
+        smoothing = next(s["value"] for s in presets["steps"] if s["effect"] == "smoothing")
+        assert smoothing >= 15, f"Noisy bg should raise smoothing floor, got {smoothing}"
+
+    def test_faint_blue_on_tinted_bg_detected_as_blue(self):
+        """Faint blue ink (low chrominance) with high ratio must be detected as blue."""
+        img = Image.new("RGB", (200, 200), (240, 235, 230))  # light tinted background
+        # Draw faint blue ink — B dominates but chrominance is ~35 (below 40)
+        px = img.load()
+        for x in range(40, 160):
+            for y in range(80, 120):
+                px[x, y] = (60, 70, 105)  # B-max(R,G) = 35, darker so Otsu picks it up
+        presets = detect_presets(img)
+        assert presets["mode"] == MODE_BLUE
+
 
 # ── Edge cases ───────────────────────────────────────────────────────────────
 

@@ -475,11 +475,14 @@ def _detect_mode(ink_b_mask: np.ndarray, ink_count: int,
     if ratio < BLUE_RATIO_LOW:
         return MODE_DARK
 
-    # Check that blue pixels are actually vivid (not just dark-ish blue tint)
+    # Check that blue pixels are actually vivid (not just dark-ish blue tint).
+    # When the ratio is overwhelming (>0.8) the ink is almost certainly blue,
+    # so we accept a lower chrominance (faint blue on tinted paper).
     if blue_count >= MIN_INK_PIXELS:
         chroma = b[ink_b_mask] - np.maximum(r[ink_b_mask], g[ink_b_mask])
         median_chroma = float(np.median(chroma))
-        if median_chroma < 40:
+        chroma_floor = 20 if ratio > 0.8 else 40
+        if median_chroma < chroma_floor:
             return MODE_DARK  # weak blue — treat as dark ink (e.g. dark ballpoint)
 
     if ratio > BLUE_RATIO_HIGH:
@@ -498,11 +501,14 @@ def _detect_blue_tolerance(b: np.ndarray, r: np.ndarray, g: np.ndarray,
 
 _SMOOTHING_REF_SIZE = 1000  # reference image dimension (long edge) for gradient normalization
 
-def _detect_smoothing(lum: np.ndarray, ink_mask: np.ndarray) -> int:
-    """Optimal smoothing from edge sharpness (gradient magnitude).
+def _detect_smoothing(lum: np.ndarray, ink_mask: np.ndarray,
+                      bg_lum_bright: np.ndarray) -> int:
+    """Optimal smoothing from edge sharpness and background noise.
 
     Gradients are normalized to a reference resolution so that the same
     physical signature at different scan resolutions yields similar smoothing.
+    A noisy background (measured on bright pixels only) raises the smoothing
+    floor to reduce grain artifacts.
     """
     gy = np.abs(lum[2:, 1:-1] - lum[:-2, 1:-1])
     gx = np.abs(lum[1:-1, 2:] - lum[1:-1, :-2])
@@ -518,18 +524,55 @@ def _detect_smoothing(lum: np.ndarray, ink_mask: np.ndarray) -> int:
     scale = _SMOOTHING_REF_SIZE / long_edge if long_edge > 0 else 1.0
     normalized_grad = median_grad * scale
 
-    return _clamp(int(30 - normalized_grad * 1.5), "smoothing")
+    smoothing = int(30 - normalized_grad * 1.5)
+
+    # Noisy background → raise floor to reduce grain artifacts
+    if bg_lum_bright.size >= MIN_INK_PIXELS:
+        bg_std = float(np.std(bg_lum_bright))
+        if bg_std > 6:
+            smoothing = max(smoothing, int(bg_std * 2))
+
+    return _clamp(smoothing, "smoothing")
 
 
-def _detect_contrast(ink_lum: np.ndarray) -> int:
-    """Optimal contrast from median ink luminosity (faded ink → more boost).
+def _detect_contrast(ink_lum: np.ndarray, bg_lum_all: np.ndarray,
+                     bg_lum_bright: np.ndarray) -> int:
+    """Optimal contrast from ink luminosity, ink/bg gap, and background noise.
 
-    Scale: lum 50 → 0 (already dark), lum 80 → ~30, lum 120 → ~70, lum 150+ → ~100.
+    *bg_lum_all* — all non-ink pixels (used for gap measurement).
+    *bg_lum_bright* — only bright pixels >200 (used for noise measurement,
+    avoids anti-alias edge inflation).
+
+    Base scale: lum 50 → 0, lum 80 → ~30, lum 150 → ~100.
+    Reduced when the natural gap between ink and background is already large
+    (good contrast without boosting) or when the gap is very small
+    (ink/bg overlap — boosting amplifies noise).
     """
     median = float(np.median(ink_lum))
     if median < 50:
         return 0  # ink is already dark enough
-    return _clamp(int((median - 50) * 1.0), "contrast")
+
+    base = int(median - 50)
+
+    # Scale by ink/background separation (gap)
+    median_bg = float(np.median(bg_lum_all))
+    gap = median_bg - median
+    if gap > 120:
+        base = int(base * 0.3)   # excellent natural contrast
+    elif gap > 80:
+        base = int(base * 0.6)   # good natural contrast
+    elif gap < 60:
+        # Ink and background overlap — high noise amplification risk.
+        # Scale down linearly: gap 60 → full, gap 0 → zero.
+        base = int(base * gap / 120)
+
+    # Noisy background → cap boost to avoid amplifying grain
+    if bg_lum_bright.size >= MIN_INK_PIXELS:
+        bg_std = float(np.std(bg_lum_bright))
+        if bg_std > 8:
+            base = int(base * 0.7)
+
+    return _clamp(base, "contrast")
 
 
 def detect_presets(image: Image.Image) -> dict:
@@ -561,14 +604,16 @@ def detect_presets(image: Image.Image) -> dict:
 
     ri, gi, bi = r[ink_mask], g[ink_mask], b[ink_mask]
     ink_b_mask = _blue_mask(ri, gi, bi)
+    bg_lum_all = lum[~ink_mask]            # all non-ink (for gap measurement)
+    bg_lum_bright = lum[lum > 200]         # bright only (for noise measurement)
 
     return {
         "mode": _detect_mode(ink_b_mask, ink_count, bi, ri, gi),
         "steps": [
             {"effect": "threshold",      "value": threshold},
             {"effect": "blue_tolerance", "value": _detect_blue_tolerance(bi, ri, gi, ink_b_mask)},
-            {"effect": "contrast",       "value": _detect_contrast(lum[ink_mask])},
-            {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask)},
+            {"effect": "contrast",       "value": _detect_contrast(lum[ink_mask], bg_lum_all, bg_lum_bright)},
+            {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask, bg_lum_bright)},
         ],
     }
 
