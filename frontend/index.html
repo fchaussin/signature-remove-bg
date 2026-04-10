@@ -23,13 +23,14 @@
   </div>
 
   <!-- Editor -->
-  <div id="editor" class="editor settings-hidden">
+  <div id="editor" class="editor">
     <div class="auto-bar">
       <button class="btn-auto-detect" data-action="auto-detect" data-i18n="btn.auto_detect" data-i18n-title="btn.auto_detect_title" title="Detect optimal settings">&#10022; Auto</button>
       <button class="btn-settings-toggle" data-action="toggle-settings" data-i18n-title="btn.settings_title" title="Toggle settings" aria-label="Toggle settings">
         <span data-icon="gear" data-icon-size="16"></span>
       </button>
     </div>
+    <div class="settings-panel collapsed">
     <div class="controls">
       <div class="ctrl-group">
         <label class="ctrl-label" data-i18n="mode.label">Mode</label>
@@ -114,6 +115,7 @@
         </button>
       </div>
       <!-- Slots are created dynamically by FxRack -->
+    </div>
     </div>
 
     <div class="previews">

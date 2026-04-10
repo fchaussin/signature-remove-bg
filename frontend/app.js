@@ -1392,9 +1392,9 @@ dom.autoDetectBtn.onclick = applyPresets;
 
 // Settings toggle — show/hide controls & FX rack
 const settingsToggleBtn = dom.editor.querySelector('[data-action="toggle-settings"]');
+const settingsPanel = dom.editor.querySelector('.settings-panel');
 settingsToggleBtn.onclick = () => {
-  const hidden = dom.editor.classList.toggle('settings-hidden');
-  settingsToggleBtn.classList.toggle('active', !hidden);
+  toggleCollapse(settingsPanel, settingsToggleBtn, 'active');
 };
 
 // Effects rack — dynamic slots, add/remove, drag & drop

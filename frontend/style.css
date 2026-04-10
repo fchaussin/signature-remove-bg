@@ -405,11 +405,16 @@ input[type=range] {
   .busy .controls::after { animation: none; width: 100%; transform: none; opacity: .4; }
 }
 
-/* Hide controls, rack & API toggle when settings panel is collapsed */
-.editor.settings-hidden > .controls,
-.editor.settings-hidden > .rack,
-.editor.settings-hidden > .api-doc {
-  display: none;
+/* Settings panel — animated collapse/expand */
+.settings-panel {
+  max-height: 800px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height .3s ease, opacity .2s ease;
+}
+.settings-panel.collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 /* API toggle — discrete link, sits in rack header */
