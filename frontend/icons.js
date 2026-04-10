@@ -99,6 +99,13 @@ const Icon = (() => {
       '<line x1="3" y1="21" x2="10" y2="14"/>',
     ],
 
+    // Eraser — clean lines
+    eraser: [
+      '<path d="M7 21h10"/>',
+      '<path d="M5.5 13.5 9 17l7-7-4.5-4.5a2.12 2.12 0 0 0-3 0L5.5 8.5a2.12 2.12 0 0 0 0 3z"/>',
+      '<path d="m2 21 3.5-3.5"/>',
+    ],
+
     // Code brackets — base64
     code: [
       '<polyline points="16 18 22 12 16 6"/>',

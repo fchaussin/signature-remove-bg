@@ -37,6 +37,7 @@ from fastapi import FastAPI, UploadFile, File, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
+import cv2
 import numpy as np
 from PIL import Image
 from secure import Secure
@@ -58,7 +59,7 @@ MODE_DARK = "dark"
 MODE_BLUE = "blue"
 VALID_MODES = {MODE_AUTO, MODE_DARK, MODE_BLUE}
 VALID_FORMATS = {"png", "webp"}
-VALID_EFFECTS = {"threshold", "blue_tolerance", "contrast", "smoothing"}
+VALID_EFFECTS = {"threshold", "blue_tolerance", "contrast", "smoothing", "clean_lines"}
 MAX_PIPELINE_STEPS = 7
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 
@@ -85,6 +86,7 @@ PARAM_RANGES = {
     "blue_tolerance": {"min": 20,  "max": 200, "default_env": "DEFAULT_BLUE_TOLERANCE",  "default": 80},
     "smoothing":      {"min": 0,   "max": 100, "default_env": "DEFAULT_SMOOTHING",       "default": 30},
     "contrast":       {"min": 0,   "max": 100, "default_env": "DEFAULT_CONTRAST",        "default": 0},
+    "clean_lines":    {"min": 0,   "max": 100, "default_env": "DEFAULT_CLEAN_LINES",     "default": 0},
 }
 
 
@@ -142,6 +144,7 @@ DEFAULT_THRESHOLD      = DEFAULTS["threshold"]
 DEFAULT_BLUE_TOLERANCE = DEFAULTS["blue_tolerance"]
 DEFAULT_SMOOTHING      = DEFAULTS["smoothing"]
 DEFAULT_CONTRAST       = DEFAULTS["contrast"]
+DEFAULT_CLEAN_LINES    = DEFAULTS["clean_lines"]
 
 # -- CORS (A05 — set CORS_ORIGINS in production, wildcard is dev-only) ------
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
@@ -357,12 +360,50 @@ def _step_contrast(alpha: np.ndarray, result: np.ndarray,
     return np.where(visible, np.clip(a + (255 - a) * c, 0, 255), 0)
 
 
+def _step_clean_lines(alpha: np.ndarray, lum: np.ndarray,
+                      clean_lines: int, **_) -> np.ndarray:
+    """Pipeline step: remove ruled lines / grid patterns via morphological detection.
+
+    Uses horizontal and vertical morphological opening to isolate line structures,
+    then subtracts them from the alpha channel.  The *clean_lines* value (0-100)
+    controls aggressiveness: higher values use shorter kernels, catching more lines.
+    """
+    if clean_lines <= 0:
+        return alpha
+
+    # Binarize luminosity — lines are typically dark on light background
+    lum8 = np.clip(lum, 0, 255).astype(np.uint8)
+    _, binary = cv2.threshold(lum8, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Kernel length: high aggressiveness (100) → shorter kernel (15px) detects more;
+    # low aggressiveness (1) → longer kernel (80px) detects only long lines.
+    kernel_len = max(15, int(80 - clean_lines * 0.65))
+
+    # Detect horizontal lines
+    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_len, 1))
+    h_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel, iterations=1)
+
+    # Detect vertical lines
+    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_len))
+    v_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel, iterations=1)
+
+    # Combine and dilate slightly to cover anti-aliased edges
+    line_mask = cv2.add(h_lines, v_lines)
+    dilate_k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    line_mask = cv2.dilate(line_mask, dilate_k, iterations=1)
+
+    # Subtract line pixels from alpha (strength proportional to slider)
+    strength = clean_lines / 100.0
+    return np.clip(alpha - line_mask.astype(np.float64) * strength, 0, 255)
+
+
 # Pipeline step registry — maps effect names to functions
 _PIPELINE_STEPS = {
     "threshold":      _step_threshold,
     "blue_tolerance": _step_blue_tolerance,
     "smoothing":      _step_smoothing,
     "contrast":       _step_contrast,
+    "clean_lines":    _step_clean_lines,
 }
 
 
@@ -384,6 +425,7 @@ def extract_signature(
         steps = [
             ("threshold", DEFAULT_THRESHOLD),
             ("blue_tolerance", DEFAULT_BLUE_TOLERANCE),
+            ("clean_lines", DEFAULT_CLEAN_LINES),
             ("contrast", DEFAULT_CONTRAST),
             ("smoothing", DEFAULT_SMOOTHING),
         ]
@@ -595,6 +637,77 @@ def _detect_contrast(ink_lum: np.ndarray, bg_lum_all: np.ndarray,
     return _clamp(base, "contrast")
 
 
+def _detect_clean_lines(lum: np.ndarray) -> int:
+    """Detect presence of ruled lines or grid patterns.
+
+    Uses morphological opening with long horizontal/vertical kernels on the
+    binarized luminosity.  Requires multiple parallel line structures to avoid
+    false positives from signature strokes or image edges.
+    Returns a suggested clean_lines value (0 = none detected).
+    """
+    h, w = lum.shape
+    # Need a minimum image size for meaningful detection
+    if min(h, w) < 100:
+        return 0
+
+    lum8 = np.clip(lum, 0, 255).astype(np.uint8)
+    _, binary = cv2.threshold(lum8, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    dark_pixels = int(np.count_nonzero(binary))
+    if dark_pixels < MIN_INK_PIXELS:
+        return 0
+
+    # Kernel length = 25% of image width/height — lines span a good portion
+    h_kernel_len = max(60, w // 4)
+    v_kernel_len = max(60, h // 4)
+
+    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (h_kernel_len, 1))
+    h_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel, iterations=1)
+
+    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_kernel_len))
+    v_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel, iterations=1)
+
+    # Count distinct line structures using connected components
+    h_count = 0
+    if np.any(h_lines):
+        h_count = cv2.connectedComponents(h_lines)[0] - 1  # subtract background label
+    v_count = 0
+    if np.any(v_lines):
+        v_count = cv2.connectedComponents(v_lines)[0] - 1
+
+    # Require at least 3 parallel lines in one direction (ruled/grid paper)
+    if h_count < 3 and v_count < 3:
+        return 0
+
+    h_pixels = int(np.count_nonzero(h_lines))
+    v_pixels = int(np.count_nonzero(v_lines))
+
+    # Check per-direction: average thickness and coverage.
+    # Real ruled lines are thin and don't cover too much area.
+    # Noisy images create thick blobs or excessive coverage.
+    max_thickness = max(5, int(min(h, w) * 0.015))
+    total_area = h * w
+    best_dir_count = 0
+
+    if h_count >= 4:
+        avg_thickness = h_pixels / max(h_count * w, 1)
+        coverage = h_pixels / total_area
+        if avg_thickness < max_thickness and coverage < 0.10:
+            best_dir_count = max(best_dir_count, h_count)
+    if v_count >= 4:
+        avg_thickness = v_pixels / max(v_count * h, 1)
+        coverage = v_pixels / total_area
+        if avg_thickness < max_thickness and coverage < 0.10:
+            best_dir_count = max(best_dir_count, v_count)
+
+    if best_dir_count < 4:
+        return 0
+
+    # Scale: more lines → higher value (3 lines → 30, 10+ → 80)
+    value = int(min(30 + best_dir_count * 5, 80))
+    return _clamp(value, "clean_lines")
+
+
 def detect_presets(image: Image.Image) -> dict:
     """
     Analyse an image and return optimal extraction parameters.
@@ -611,12 +724,15 @@ def detect_presets(image: Image.Image) -> dict:
     ink_mask = lum < coarse
     ink_count = int(np.count_nonzero(ink_mask))
 
+    clean_lines = _detect_clean_lines(lum)
+
     if ink_count < MIN_INK_PIXELS:
         return {
             "mode": MODE_AUTO,
             "steps": [
                 {"effect": "threshold",      "value": threshold},
                 {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
+                {"effect": "clean_lines",    "value": clean_lines},
                 {"effect": "contrast",       "value": DEFAULT_CONTRAST},
                 {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
             ],
@@ -632,6 +748,7 @@ def detect_presets(image: Image.Image) -> dict:
         "steps": [
             {"effect": "threshold",      "value": threshold},
             {"effect": "blue_tolerance", "value": _detect_blue_tolerance(bi, ri, gi, ink_b_mask)},
+            {"effect": "clean_lines",    "value": clean_lines},
             {"effect": "contrast",       "value": _detect_contrast(lum[ink_mask], bg_lum_all, bg_lum_bright)},
             {"effect": "smoothing",      "value": _detect_smoothing(lum, ink_mask, bg_lum_bright)},
         ],
@@ -723,6 +840,7 @@ async def config(request: Request):
         "steps": [
             {"effect": "threshold",      "value": DEFAULT_THRESHOLD},
             {"effect": "blue_tolerance", "value": DEFAULT_BLUE_TOLERANCE},
+            {"effect": "clean_lines",    "value": DEFAULT_CLEAN_LINES},
             {"effect": "contrast",       "value": DEFAULT_CONTRAST},
             {"effect": "smoothing",      "value": DEFAULT_SMOOTHING},
         ],

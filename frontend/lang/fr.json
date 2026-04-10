@@ -13,6 +13,8 @@
   "smoothing.name": "Lissage des bords",
   "contrast.label": "Contraste :",
   "contrast.name": "Contraste",
+  "clean_lines.label": "Nettoyage lignes :",
+  "clean_lines.name": "Nettoyage lignes",
   "format.label": "Format",
   "panel.original": "Original",
   "panel.extracted": "Signature extraite",

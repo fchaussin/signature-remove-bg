@@ -144,7 +144,7 @@ class TestAnalyze:
 
     def test_steps_have_valid_effects(self, client, dark_stroke_png_bytes):
         data = _upload(client, "/analyze", dark_stroke_png_bytes).json()
-        valid = {"threshold", "blue_tolerance", "contrast", "smoothing"}
+        valid = {"threshold", "blue_tolerance", "contrast", "smoothing", "clean_lines"}
         for step in data["steps"]:
             assert step["effect"] in valid
 

@@ -13,6 +13,8 @@
   "smoothing.name": "Edge smoothing",
   "contrast.label": "Contrast:",
   "contrast.name": "Contrast",
+  "clean_lines.label": "Clean lines:",
+  "clean_lines.name": "Clean lines",
   "format.label": "Format",
   "panel.original": "Original",
   "panel.extracted": "Extracted signature",

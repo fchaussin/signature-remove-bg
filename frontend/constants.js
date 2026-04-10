@@ -57,6 +57,7 @@ const PARAM_RANGES = {
   blue_tolerance: { min: 20,  max: 200, off: 80 },
   smoothing:      { min: 0,   max: 100, off: 0 },
   contrast:       { min: 0,   max: 100, off: 0 },
+  clean_lines:    { min: 0,   max: 100, off: 0 },
 };
 
 // Valid effect names (must match server VALID_EFFECTS)

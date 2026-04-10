@@ -22,6 +22,7 @@ class FxRack {
     blue_tolerance: { icon: 'droplet',     labelKey: 'blue_tolerance.name', min: 20,  max: 200, off: 80,  defaultOn: true },
     contrast:       { icon: 'circle-half', labelKey: 'contrast.name',       min: 0,   max: 100, off: 0,   defaultOn: false },
     smoothing:      { icon: 'waves',       labelKey: 'smoothing.name',      min: 0,   max: 100, off: 30,  defaultOn: true },
+    clean_lines:    { icon: 'eraser',      labelKey: 'clean_lines.name',    min: 0,   max: 100, off: 0,   defaultOn: false },
   };
 
   static MIN_SLOTS = 1;
