@@ -440,7 +440,8 @@ input[type=range] {
 
 .btn-settings-toggle {
   flex-shrink: 0;
-  width: 2.4rem;
+  min-width: 2.4rem;
+  width: auto;
   display: flex;
   align-items: center;
   justify-content: center;
