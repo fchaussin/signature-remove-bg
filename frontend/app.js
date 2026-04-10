@@ -271,6 +271,12 @@ function loadFile(f) {
   if (base64Controller)  base64Controller.abort();
   if (analyzeController) analyzeController.abort();
 
+  // Release references from previous file to free memory
+  lastExtractedBlob = null;
+  base64DataUri = '';
+  pendingPresets = null;
+  dom.extractedImg.removeAttribute('src'); // clear stale render
+
   fileGeneration++;
   currentFile = f;
   const gen = fileGeneration;
@@ -982,6 +988,7 @@ function initCrop() {
         syncCompareBeforeImg();
       };
       closeDialog(dom.cropOverlay);
+      out.width = out.height = 0; // release canvas backing store
       extractSignature();
     }, 'image/png');
   };
@@ -1017,6 +1024,7 @@ function initCrop() {
           checkResolution();
           syncCompareBeforeImg();
         };
+        canvas.width = canvas.height = 0; // release canvas backing store
         extractSignature();
       }, 'image/png');
     };
