@@ -512,6 +512,9 @@ async function applyPresets() {
   // Auto-detect always imposes dirty state
   markPresetDirty();
 
+  // Applied — remove ready state
+  dom.autoDetectBtn.classList.remove('ready');
+
   // Re-extract with the new parameters (presets stay available until next upload)
   requestExtract();
 }

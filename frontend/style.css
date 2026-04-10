@@ -225,8 +225,7 @@ button {
 .busy .actions button,
 .busy .bg-swatch,
 .busy .compare-toggle input,
-.busy .panel-tool-btn,
-.busy .btn-auto-detect {
+.busy .panel-tool-btn {
   pointer-events: none;
   opacity: .45;
 }
@@ -466,10 +465,24 @@ input[type=range] {
   &.active .icon { transform: rotate(90deg); }
 }
 
-/* === Auto-detect button (full-width, accent, glow) === */
+/* === Auto-detect button === */
+
+@keyframes border-spin {
+  to { --border-angle: 360deg; }
+}
+
+@keyframes stripes-slide {
+  to { background-position: 22.6px 0, 0 0; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
 
 .btn-auto-detect {
-  position: relative;
+  --border-angle: 0deg;
   flex: 1;
   min-width: 0;
   padding: .65rem 1rem;
@@ -482,72 +495,38 @@ input[type=range] {
   border-radius: var(--radius-md);
   box-shadow: 0 0 8px rgba(74, 144, 217, .25);
   cursor: pointer;
-  transition: box-shadow .3s, transform .15s, filter .2s;
-  overflow: hidden;
-  z-index: 0;
 
-  &:hover {
-    box-shadow: 0 0 16px rgba(74, 144, 217, .45), 0 0 4px rgba(106, 90, 205, .3);
-    transform: translateY(-1px);
-    filter: brightness(1.08);
+  /* idle → busy/ready transition */
+  &[aria-busy="true"] {
+    cursor: default;
+    color: #000;
+    background:
+      repeating-linear-gradient(-45deg, var(--color-surface), var(--color-surface) 8px, rgb(0 0 0 / .04) 8px, rgb(0 0 0 / .04) 16px) padding-box,
+      conic-gradient(from var(--border-angle), var(--color-primary), #6a5acd, #b4a0ff, var(--color-primary)) border-box;
+    background-size: 22.6px 22.6px, 100% 100%;
+    animation: border-spin 2s linear infinite, stripes-slide 1s linear infinite;
+    box-shadow: none;
+    overflow: hidden;
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: #ffffffcc;
+    }
   }
 
-  &:active {
-    transform: translateY(0);
-    filter: brightness(.95);
+  /* ready = analysis done, waiting for user click */
+  &[aria-busy="true"].ready {
+    opacity: 1;
+    color: var(--color-primary);
+    box-shadow: 0 0 12px rgba(74, 144, 217, .4), 0 0 4px rgba(106, 90, 205, .3);
   }
-}
-
-/* Spinning conic-gradient border during busy state */
-
-@keyframes border-spin {
-  to { --border-angle: 360deg; }
-}
-
-@property --border-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-.busy .btn-auto-detect {
-  --border-angle: 0deg;
-  opacity: .7;
-  cursor: default;
-  filter: saturate(.6);
-  border-color: transparent;
-  background:
-    linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
-    conic-gradient(
-      from var(--border-angle),
-      var(--color-primary),
-      #6a5acd,
-      #b4a0ff,
-      var(--color-primary)
-    ) border-box;
-  color: var(--color-text-secondary);
-  animation: border-spin 2s linear infinite;
-  box-shadow: none;
-}
-
-.busy .btn-auto-detect:hover {
-  transform: none;
-  filter: saturate(.6);
-}
-
-@keyframes glow-pulse {
-  0%   { box-shadow: 0 0 8px rgba(74, 144, 217, .25); }
-  50%  { box-shadow: 0 0 18px rgba(74, 144, 217, .5), 0 0 6px rgba(106, 90, 205, .35); }
-  100% { box-shadow: 0 0 8px rgba(74, 144, 217, .25); }
-}
-
-.btn-auto-detect.ready {
-  animation: glow-pulse 2s ease-in-out 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn-auto-detect.ready { animation: none; }
-  .busy .btn-auto-detect { animation: none; }
+  .btn-auto-detect[aria-busy="true"] { animation: none; }
 }
 
 /* === Preset group (auto + select + save/delete) === */
@@ -1411,8 +1390,23 @@ input[type=range] {
   gap: .2rem;
   min-width: 0;
 
-  & label { font-size: var(--font-sm); font-weight: 500; }
+  & label { font-size: var(--font-sm); font-weight: 500; display: flex; align-items: baseline; gap: .4rem; }
+  & .rack-number { margin-left: auto; }
   & input[type=range] { width: 100%; }
+}
+
+.rack-number {
+  width: 3.5rem;
+  padding: .25rem .4rem;
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .1);
+  color: inherit;
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
 /* === Base64 popup === */

@@ -43,6 +43,7 @@ class FxSlot {
     // Bind events
     if (this._checkbox) this._checkbox.addEventListener('change', () => this._onToggleChange());
     if (this._slider) this._slider.addEventListener('input', () => this._onSliderInput());
+    if (this._display) this._display.addEventListener('input', () => this._onNumberInput());
     if (this._removeBtn) this._removeBtn.addEventListener('click', () => this._onRemove(this));
   }
 
@@ -63,7 +64,7 @@ class FxSlot {
   /** Programmatically set the slider value + display. */
   setValue(v) {
     if (this._slider) this._slider.value = v;
-    if (this._display) this._display.textContent = v;
+    if (this._display) this._display.value = v;
   }
 
   /** Programmatically set the enabled/disabled toggle state. */
@@ -98,19 +99,28 @@ class FxSlot {
       <span class="rack-icon" data-icon="${meta.icon}" data-icon-size="16"></span>
       <label class="rack-toggle"><input type="checkbox"${meta.defaultOn ? ' checked' : ''} aria-label="Enable ${meta.label}"><span class="rack-toggle-mark"></span></label>
       <div class="rack-body">
-        <label><span class="rack-label"></span> <span data-display="${this.effect}"></span></label>
+        <label><span class="rack-label"></span> <input class="rack-number" type="number" data-display="${this.effect}" min="${meta.min}" max="${meta.max}" value="${meta.off}"></label>
         <input type="range" data-param="${this.effect}" min="${meta.min}" max="${meta.max}" value="${meta.off}">
       </div>
       <button class="btn-remove-slot" data-action="remove-slot" aria-label="Remove" data-icon="close" data-icon-size="12"></button>
     `;
     // Set text content safely (no HTML injection)
     el.querySelector('.rack-label').textContent = meta.label;
-    el.querySelector('[data-display]').textContent = meta.off;
     return el;
   }
 
   _onSliderInput() {
-    if (this._display) this._display.textContent = this._slider.value;
+    if (this._display) this._display.value = this._slider.value;
+    this._onChange(this);
+  }
+
+  _onNumberInput() {
+    const min = this._meta.min;
+    const max = this._meta.max;
+    let v = parseInt(this._display.value, 10);
+    if (isNaN(v)) return;
+    v = Math.max(min, Math.min(max, v));
+    if (this._slider) this._slider.value = v;
     this._onChange(this);
   }
 
