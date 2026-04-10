@@ -444,6 +444,11 @@ def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
     """
     Two-pass threshold detection.
     Returns (refined, coarse) — refined for extraction, coarse for analysis.
+
+    On grey paper (few bright pixels) with a clear valley at the coarse
+    threshold, the second Otsu pass tends to split *within* the ink rather
+    than separating ink from paper.  In that case we use the midpoint between
+    refined and coarse so lighter strokes are not lost.
     """
     # Pass 1 — coarse: separate foreground from background (pixels < 220)
     dark_lum = lum[lum < 220]
@@ -458,6 +463,21 @@ def _otsu_threshold(lum: np.ndarray) -> tuple[int, int]:
         return _clamp(coarse, "threshold"), _clamp(coarse, "threshold")
 
     refined = _otsu_once(ink, coarse, coarse)
+
+    # Grey-paper correction: if the paper is grey (< 5 % of pixels above 220)
+    # and there is a clear valley at the coarse threshold (low density in a
+    # ±10 window), the coarse split is reliable but refined over-segments the
+    # ink.  Use the midpoint to recover lighter strokes.
+    bright_frac = (lum > 220).sum() / lum.size
+    if bright_frac < 0.05 and coarse > refined:
+        window = 10
+        near = ((lum >= coarse - window) & (lum < coarse + window)).sum()
+        density = near / lum.size
+        if density < 0.03:
+            # Use coarse with a small safety margin — the anti-alias
+            # transition (ANTIALIAS_SM=15) naturally fades paper pixels
+            return _clamp(coarse - 5, "threshold"), _clamp(coarse, "threshold")
+
     return _clamp(refined, "threshold"), _clamp(coarse, "threshold")
 
 

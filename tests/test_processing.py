@@ -402,6 +402,29 @@ class TestDetectPresets:
         contrast = next(s["value"] for s in presets["steps"] if s["effect"] == "contrast")
         assert contrast >= 30, f"Faint ink on clean bg should get contrast boost, got {contrast}"
 
+    def test_grey_paper_threshold_not_over_refined(self):
+        """Grey paper with clear ink/paper gap: threshold should not cut lighter strokes.
+
+        Simulates a notebook page where paper is grey (~190) and ink ranges
+        from very dark (~30) to lighter strokes (~100), with a clear gap
+        between ink (max ~120) and paper (min ~160).
+        """
+        rng = np.random.RandomState(7)
+        # Grey paper background (lum ~190, no pixels above 220)
+        bg = rng.normal(190, 4, (300, 400)).clip(160, 215).astype(np.uint8)
+        px = np.stack([bg, bg, bg], axis=-1)
+        # Ink with realistic noise — continuous gradient from dark to lighter
+        for y in range(80, 220):
+            for x in range(50, 350):
+                base = 30 + int(40 * abs(y - 150) / 70)  # 30 at center, ~70 at edges
+                v = max(0, min(130, base + rng.randint(-10, 10)))
+                px[y, x] = [v, v, v]
+        img = Image.fromarray(px)
+        presets = detect_presets(img)
+        threshold = next(s["value"] for s in presets["steps"] if s["effect"] == "threshold")
+        # Threshold must be high enough to capture lighter strokes (lum ~80-100)
+        assert threshold > 70, f"Grey paper threshold should capture lighter strokes, got {threshold}"
+
     def test_smoothing_floor_on_noisy_bg(self):
         """Noisy background should raise the smoothing floor."""
         rng = np.random.RandomState(42)
