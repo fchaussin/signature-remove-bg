@@ -126,6 +126,7 @@
         <div class="res-hint" style="display:none"></div>
         <div class="actions">
           <button class="btn-secondary" data-action="crop" style="display:none"><span data-icon="crop" data-icon-size="14"></span> <span data-i18n="btn.crop">Crop</span></button>
+          <button class="btn-secondary" data-action="eraser" style="display:none"><span data-icon="eraser" data-icon-size="14"></span> <span data-i18n="btn.eraser">Eraser</span></button>
           <button class="btn-secondary btn-downsize" data-action="downsize" style="display:none"><span data-icon="minimize" data-icon-size="14"></span> <span data-i18n="btn.downsize">Downsize</span></button>
         </div>
       </div>
@@ -202,6 +203,26 @@
         <div class="crop-handle" data-edge="bottom"></div>
         <div class="crop-handle" data-edge="left"></div>
         <div class="crop-handle" data-edge="right"></div>
+      </div>
+      <div class="popup-actions">
+        <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>
+        <button data-action="apply" data-i18n="btn.apply">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Eraser popup -->
+  <dialog id="eraser" class="dialog dialog--dim" aria-label="Eraser tool">
+    <div class="popup">
+      <h2 data-i18n="eraser.title">Erase noise</h2>
+      <div class="eraser-toolbar">
+        <label data-i18n="eraser.brush_size">Brush size:</label>
+        <input type="range" class="eraser-size-slider" min="5" max="80" value="20">
+        <span class="eraser-size-display">20</span>
+        <button class="btn-secondary btn-sm" data-action="eraser-undo" data-i18n="eraser.undo">Undo</button>
+      </div>
+      <div class="eraser-area">
+        <canvas aria-label="Eraser preview"></canvas>
       </div>
       <div class="popup-actions">
         <button class="btn-secondary" data-action="cancel" data-i18n="btn.cancel">Cancel</button>

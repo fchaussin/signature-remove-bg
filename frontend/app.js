@@ -34,6 +34,7 @@ const dom = {
   editor:          document.getElementById('editor'),
   zoomOverlay:     document.getElementById('zoom'),
   cropOverlay:     document.getElementById('crop'),
+  eraserOverlay:   document.getElementById('eraser'),
   base64Overlay:   document.getElementById('base64'),
   savePresetOverlay: document.getElementById('save-preset'),
   deletePresetOverlay: document.getElementById('delete-preset'),
@@ -77,6 +78,12 @@ const dom = {
   cropShades:      {},
   cropHandles:     {},
 
+  // Eraser children
+  eraserArea:      null,
+  eraserCanvas:    null,
+  eraserSizeSlider: null,
+  eraserSizeDisplay: null,
+
   // Base64 children
   base64Textarea:  null,
   base64CopyBtn:   null,
@@ -119,6 +126,12 @@ dom.cropCanvas = dom.cropArea.querySelector('canvas');
   dom.cropShades[edge]  = dom.cropArea.querySelector(`.crop-shade[data-edge="${edge}"]`);
   dom.cropHandles[edge] = dom.cropArea.querySelector(`.crop-handle[data-edge="${edge}"]`);
 });
+
+// Eraser children
+dom.eraserArea         = dom.eraserOverlay.querySelector('.eraser-area');
+dom.eraserCanvas       = dom.eraserArea.querySelector('canvas');
+dom.eraserSizeSlider   = dom.eraserOverlay.querySelector('.eraser-size-slider');
+dom.eraserSizeDisplay  = dom.eraserOverlay.querySelector('.eraser-size-display');
 
 // Base64 children
 dom.base64Textarea = dom.base64Overlay.querySelector('.base64-textarea');
@@ -331,9 +344,12 @@ function checkResolution() {
   const ratio = naturalW / dom.originalImg.clientWidth;
   const pixels = naturalW * naturalH;
 
-  // Show crop button only for images larger than 400×400
+  // Show crop/eraser buttons only for images larger than 400px
+  const showTools = naturalW > 400 || naturalH > 400;
   const cropBtn = dom.originalPanel.querySelector('[data-action="crop"]');
-  if (cropBtn) cropBtn.style.display = (naturalW > 400 || naturalH > 400) ? '' : 'none';
+  if (cropBtn) cropBtn.style.display = showTools ? '' : 'none';
+  const eraserBtn = dom.originalPanel.querySelector('[data-action="eraser"]');
+  if (eraserBtn) eraserBtn.style.display = showTools ? '' : 'none';
 
   dom.resHint.style.display = 'none';
   dom.resHint.className = 'res-hint';
@@ -1038,6 +1054,188 @@ function initCrop() {
 
 
 /* ===================================================================
+ *  9b. initEraser() — eraser tool (paint white to remove noise)
+ * =================================================================== */
+
+function initEraser() {
+  const eraserImg = new Image();
+  let eraserScale = 1;
+  let eraserCanvasW = 0;
+  let eraserCanvasH = 0;
+  const eraserCtx = dom.eraserCanvas.getContext('2d');
+
+  // Undo history — snapshots of the canvas ImageData
+  let undoStack = [];
+  const MAX_UNDO = 30;
+
+  function pushUndo() {
+    if (undoStack.length >= MAX_UNDO) undoStack.shift();
+    undoStack.push(eraserCtx.getImageData(0, 0, eraserCanvasW, eraserCanvasH));
+  }
+
+  function drawEraserCanvas() {
+    eraserCtx.drawImage(eraserImg, 0, 0, eraserCanvasW, eraserCanvasH);
+  }
+
+  // Brush state
+  let brushSize = 20;
+  let painting = false;
+
+  function getBrushRadius() {
+    return Math.max(2, Math.round(brushSize / 2));
+  }
+
+  function canvasPos(e) {
+    const rect = dom.eraserCanvas.getBoundingClientRect();
+    const scaleX = eraserCanvasW / rect.width;
+    const scaleY = eraserCanvasH / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }
+
+  function eraseAt(x, y) {
+    const r = getBrushRadius();
+    eraserCtx.save();
+    eraserCtx.globalCompositeOperation = 'source-over';
+    eraserCtx.fillStyle = '#ffffff';
+    eraserCtx.beginPath();
+    eraserCtx.arc(x, y, r, 0, Math.PI * 2);
+    eraserCtx.fill();
+    eraserCtx.restore();
+  }
+
+  // Brush size slider
+  dom.eraserSizeSlider.oninput = () => {
+    brushSize = parseInt(dom.eraserSizeSlider.value, 10);
+    dom.eraserSizeDisplay.textContent = brushSize;
+  };
+
+  // Custom cursor — show brush outline
+  dom.eraserCanvas.style.cursor = 'none';
+  let cursorOverlay = null;
+
+  function updateCursor(e) {
+    if (!cursorOverlay) return;
+    const rect = dom.eraserCanvas.getBoundingClientRect();
+    const displayRadius = getBrushRadius() * (rect.width / eraserCanvasW);
+    cursorOverlay.style.width = cursorOverlay.style.height = `${displayRadius * 2}px`;
+    cursorOverlay.style.left = `${e.clientX - rect.left - displayRadius}px`;
+    cursorOverlay.style.top  = `${e.clientY - rect.top - displayRadius}px`;
+  }
+
+  // Drawing events
+  dom.eraserCanvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    painting = true;
+    pushUndo();
+    const pos = canvasPos(e);
+    eraseAt(pos.x, pos.y);
+  });
+
+  dom.eraserCanvas.addEventListener('mousemove', (e) => {
+    updateCursor(e);
+    if (!painting) return;
+    const pos = canvasPos(e);
+    eraseAt(pos.x, pos.y);
+  });
+
+  window.addEventListener('mouseup', () => { painting = false; });
+
+  dom.eraserCanvas.addEventListener('mouseenter', () => {
+    if (!cursorOverlay) {
+      cursorOverlay = document.createElement('div');
+      cursorOverlay.className = 'eraser-cursor';
+      dom.eraserArea.appendChild(cursorOverlay);
+    }
+    cursorOverlay.style.display = '';
+  });
+
+  dom.eraserCanvas.addEventListener('mouseleave', () => {
+    if (cursorOverlay) cursorOverlay.style.display = 'none';
+    painting = false;
+  });
+
+  // Touch support
+  dom.eraserCanvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    painting = true;
+    pushUndo();
+    const touch = e.touches[0];
+    const pos = canvasPos(touch);
+    eraseAt(pos.x, pos.y);
+  }, { passive: false });
+
+  dom.eraserCanvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!painting) return;
+    const touch = e.touches[0];
+    const pos = canvasPos(touch);
+    eraseAt(pos.x, pos.y);
+  }, { passive: false });
+
+  dom.eraserCanvas.addEventListener('touchend', () => { painting = false; });
+
+  // Undo
+  dom.eraserOverlay.querySelector('[data-action="eraser-undo"]').onclick = () => {
+    if (undoStack.length === 0) return;
+    eraserCtx.putImageData(undoStack.pop(), 0, 0);
+  };
+
+  // Open eraser overlay
+  dom.originalPanel.querySelector('[data-action="eraser"]').onclick = () => {
+    if (!currentFile) return;
+    eraserImg.onload = () => {
+      eraserScale   = fitScale(eraserImg.width, eraserImg.height, window.innerWidth * 0.85, window.innerHeight * 0.7);
+      eraserCanvasW = Math.round(eraserImg.width * eraserScale);
+      eraserCanvasH = Math.round(eraserImg.height * eraserScale);
+      dom.eraserCanvas.width  = eraserCanvasW;
+      dom.eraserCanvas.height = eraserCanvasH;
+      drawEraserCanvas();
+      undoStack = [];
+      openDialog(dom.eraserOverlay);
+    };
+    eraserImg.src = safeObjectURL('eraserSrc', currentFile);
+  };
+
+  // Cancel
+  dom.eraserOverlay.querySelector('[data-action="cancel"]').onclick = () => closeDialog(dom.eraserOverlay);
+
+  // Apply — export canvas as new original
+  dom.eraserOverlay.querySelector('[data-action="apply"]').onclick = () => {
+    // Render at full resolution: replay eraser strokes onto full-size canvas
+    const out = document.createElement('canvas');
+    out.width  = eraserImg.width;
+    out.height = eraserImg.height;
+    const outCtx = out.getContext('2d');
+    outCtx.drawImage(dom.eraserCanvas, 0, 0, eraserImg.width, eraserImg.height);
+
+    const genBefore = fileGeneration;
+    out.toBlob(blob => {
+      if (fileGeneration !== genBefore) return;
+      fileGeneration++;
+      currentFile = new File([blob], 'erased.png', { type: blob.type });
+      const gen = fileGeneration;
+      dom.originalImg.src = safeObjectURL('original', blob);
+      dom.originalImg.onload = () => {
+        if (fileGeneration !== gen) return;
+        naturalW = dom.originalImg.naturalWidth;
+        naturalH = dom.originalImg.naturalHeight;
+        checkResolution();
+        syncCompareBeforeImg();
+      };
+      closeDialog(dom.eraserOverlay);
+      out.width = out.height = 0;
+      extractSignature();
+    }, 'image/png');
+  };
+
+  registerDialog(dom.eraserOverlay);
+}
+
+
+/* ===================================================================
  *  10. initBase64() — base64 export popup
  * =================================================================== */
 
@@ -1331,6 +1529,7 @@ initCompareSlider({
 // Feature overlays
 initZoom();
 initCrop();
+initEraser();
 initBase64();
 
 // Inject SVG icons into all [data-icon] placeholders
