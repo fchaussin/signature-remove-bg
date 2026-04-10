@@ -90,6 +90,7 @@ Available effects:
 | Blue tolerance | 20–200 | Sensitivity to blue tints |
 | Contrast | 0–100 | Boost ink opacity for faint scans |
 | Edge smoothing | 0–100 | Anti-aliasing width on signature edges |
+| Clean lines | 0–100 | Remove ruled lines and grid patterns (uses OpenCV morphology) |
 
 The order in which effects are applied changes the final result. Drag & drop to experiment with different processing chains. The same effect can be added multiple times.
 
@@ -107,7 +108,7 @@ A **Live** toggle in the controls bar lets the user switch between live and manu
 
 ### Auto-detect
 
-The **Auto** button analyzes the uploaded image and suggests optimal settings (mode, threshold, blue tolerance, smoothing, contrast). When analysis completes, the button pulses to signal readiness. Clicking it applies the detected values.
+The **Auto** button analyzes the uploaded image and suggests optimal settings (mode, threshold, blue tolerance, smoothing, contrast, clean lines). When analysis completes, the button pulses to signal readiness. Clicking it applies the detected values. A **settings toggle** (gear icon) next to the Auto button shows/hides the controls and effects rack for a cleaner view.
 
 ### Presets
 
@@ -135,6 +136,13 @@ The **`</>`** button in the preset bar toggles a Swagger-style API block showing
 ![Crop tool](frontend/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
+
+### Eraser
+
+The **Eraser** button (on the original panel) opens a drawing tool to manually paint white over noise, stains, or unwanted marks on the original image before extraction. Features:
+- Adjustable brush size (5–80 px)
+- Up to 30 levels of undo
+- Touch support for tablet use
 
 ### Workflow: full-page scan
 
@@ -267,6 +275,7 @@ Analyzes an image and returns suggested extraction parameters.
   "steps": [
     {"effect": "threshold", "value": 195},
     {"effect": "blue_tolerance", "value": 80},
+    {"effect": "clean_lines", "value": 0},
     {"effect": "contrast", "value": 20},
     {"effect": "smoothing", "value": 30}
   ]
@@ -312,7 +321,11 @@ tests/
   test_processing.py   # Unit tests — extraction pipeline functions
   test_validation.py   # Unit tests — input validation, parsing
   test_api.py          # Integration tests — API endpoints
+  test_regression.py   # Regression tests — golden file comparison
+  regenerate_golden.py # Regenerate golden files after pipeline changes
   conftest.py          # Shared fixtures (synthetic images)
+  fixtures/            # Test input images
+  golden/              # Expected output references (auto-generated)
 benchmarks/
   bench_processing.py  # Processing pipeline benchmark (time + memory)
   bench_api.py         # API throughput benchmark (concurrent requests)
@@ -344,6 +357,7 @@ Environment variables (all optional, with sensible defaults). Can be set via a `
 | `DEFAULT_BLUE_TOLERANCE` | `80` | Default blue sensitivity (20–200) |
 | `DEFAULT_SMOOTHING` | `30` | Default edge smoothing (0–100) |
 | `DEFAULT_CONTRAST` | `0` | Default contrast boost (0–100) |
+| `DEFAULT_CLEAN_LINES` | `0` | Default line removal strength (0–100) |
 | `DEFAULT_FORMAT` | `png` | Default output format (`png`, `webp`) |
 | `RENDER_MODE` | `auto` | Render mode: `live`, `manual`, or `auto` (switches based on image size) |
 | `AUTO_MANUAL_PIXELS` | `4000000` | Pixel threshold for auto-switch to manual mode (4 Mpx default) |
@@ -383,8 +397,8 @@ MAX_IMAGE_PIXELS=25000000
 
 - **Runtime**: Python 3.12 / FastAPI / Uvicorn
 - **Platforms**: `linux/amd64` + `linux/arm64` (Mac Apple Silicon, Raspberry Pi, AWS Graviton)
-- **Dependencies**: Pillow, NumPy, python-multipart
-- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing, applied as a configurable pipeline
+- **Dependencies**: Pillow, NumPy, OpenCV (headless), python-multipart
+- **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing + morphological line removal (OpenCV), applied as a configurable pipeline
 - **Input formats**: JPEG, PNG, WebP, BMP, TIFF (anything Pillow supports)
 - **Output format**: PNG or WebP with alpha channel (transparent background), binary or base64 data URI
 - **Docker limits**: 128 MB RAM, 1 CPU (configurable in `docker-compose.yml`)
@@ -402,6 +416,7 @@ For manual fine-tuning when Auto doesn't nail it:
 | Jagged edges | Increase smoothing |
 | Too much smoothing / blurry | Lower smoothing (0 = pixel-sharp) |
 | Blue pen not detected | Switch mode to `Blue` or `Auto` |
+| Ruled lines / grid visible | Add `Clean lines` effect or increase its value |
 
 ## License
 

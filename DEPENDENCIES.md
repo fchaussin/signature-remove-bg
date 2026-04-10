@@ -41,6 +41,14 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 - **How**: Used in `backend/app.py` — converts PIL image to array, applies vectorized operations, then converts back.
 - **Watch out**: NumPy 2.x introduced breaking changes vs 1.x (dtype behavior, deprecated APIs). If downgrading to 1.x, test the `int16` dtype cast and boolean mask operations.
 
+### opencv-python-headless `4.11.0.86`
+
+- **Why**: Morphological operations for ruled line / grid pattern detection and removal (`clean_lines` effect). The headless variant avoids pulling in GUI dependencies (Qt/GTK).
+- **How**: Used in `backend/app.py` — `cv2.morphologyEx()` with horizontal/vertical kernels to detect line structures, `cv2.connectedComponents()` for line counting in auto-detection, `cv2.threshold()` for binarization.
+- **Watch out**:
+  - The headless variant (`opencv-python-headless`) must **not** be installed alongside `opencv-python` — they conflict. Use only one.
+  - Adds ~50 MB to the Docker image. If line removal is not needed, the dependency can be removed and the `clean_lines` effect disabled.
+
 ### python-dotenv `1.2.2`
 
 - **Why**: Load `.env` file for local development without polluting system environment. Docker deployments pass env vars directly — dotenv is a dev convenience.
@@ -125,7 +133,7 @@ When upgrading any dependency:
 
 1. Read the changelog for breaking changes
 2. `docker compose build --no-cache` to rebuild with fresh packages
-3. Test all features: upload, crop, effects rack (toggles, sliders, reorder), presets (save, load, delete, auto-detect), zoom, download, base64 export (all output formats), API doc helper
+3. Test all features: upload, crop, eraser, effects rack (toggles, sliders, reorder, clean_lines), presets (save, load, delete, auto-detect), zoom, download, base64 export (all output formats), API doc helper
 4. Verify security headers: `curl -I http://localhost:8000/` — check CSP, X-Frame-Options, etc.
 5. Verify base64 response headers: `Cache-Control: no-store` present on `output=base64` responses
 6. Check browser console for CSP violations or blocked resources

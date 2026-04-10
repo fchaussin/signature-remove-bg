@@ -18,9 +18,11 @@ const t = i18n.t.bind(i18n);
  *   6. Render mode          — live / manual / auto
  *   7. Effects rack         — debouncedExtract (FxRack in fx-rack.js)
  *   8. initZoom()           — zoom popup
- *   9. initCrop()           — crop overlay
+ *   9. initCrop()           — crop overlay + downsize
+ *  9b. initEraser()         — eraser tool (paint white to remove noise)
  *  10. initBase64()         — base64 export popup (formatting in utils.js)
- *  11. Bootstrap            — upload, paste, controls, async init gate
+ *  11. Bootstrap            — upload, paste, controls, settings toggle,
+ *                             async init gate
  * ===================================================================== */
 
 

@@ -1,6 +1,6 @@
 """
 Signature Remove Background — Extract dark/blue signatures from white backgrounds.
-Lightweight FastAPI service (~30-50 MB RAM), no ML.
+Lightweight FastAPI service (~30-50 MB RAM), OpenCV for line removal.
 
 Sections
 --------
@@ -9,8 +9,10 @@ Sections
  3. Logging            — logger setup, filename sanitizer
  4. App setup          — FastAPI instance, CORS, security headers, static files
  5. Image analysis     — _rgb_channels, _luminosity, _blue_mask (shared helpers)
- 5b. Extraction logic  — extract_signature()
- 5c. Preset detection  — _otsu_threshold, _detect_mode/blue/smoothing/contrast, detect_presets
+ 5b. Extraction logic  — _step_threshold, _step_blue_tolerance, _step_smoothing,
+                          _step_contrast, _step_clean_lines, extract_signature()
+ 5c. Preset detection  — _otsu_threshold, _detect_mode/blue/smoothing/contrast/clean_lines,
+                          detect_presets
  6. Upload helpers     — read_upload, open_image, _validate_and_open
  7. Routes             — /health, /config, /extract, /analyze, /
  8. Entrypoint         — uvicorn
@@ -206,7 +208,7 @@ def _safe_log(value: str | None, max_len: int = 100) -> str:
 #  4. App setup
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 
 app = FastAPI(
     title="Signature Remove Background",

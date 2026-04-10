@@ -2,6 +2,36 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.1] — 2026-04-10
+
+### Features
+
+#### Backend
+- **Clean lines effect** — new `clean_lines` pipeline step (0–100) that removes ruled lines and grid patterns using OpenCV morphological operations. Auto-detected by `/analyze` when 4+ parallel lines are found.
+- **New dependency**: `opencv-python-headless` for morphological image processing.
+
+#### Web UI
+- **Eraser tool** — paint white over the original image to manually remove noise, stains, or unwanted marks before extraction. Adjustable brush size (5–80 px), up to 30 undo levels, touch support.
+- **Auto button redesigned** — full-width accent gradient button with glow effect, placed prominently between dropzone and controls. Animated gradient border (conic-gradient spin) during processing.
+- **Settings toggle** — gear button next to Auto hides/shows controls and effects rack. Hidden by default for a cleaner initial view.
+- **Controls reorganized** — single compact horizontal bar replacing the two-column layout. Inline labels, vertical separators between groups.
+- **Crop/Eraser visibility** — buttons only shown when image exceeds 400px in either dimension.
+- **API button relocated** — moved from premium position to discrete link in controls bar, between presets and render.
+- **Global `box-sizing: border-box`** applied.
+- **Rack header** — subtle glass-style border (`rgb(255 255 255 / .3)`).
+
+### Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEFAULT_CLEAN_LINES` | `0` | Line removal strength (0–100) |
+
+### Dependencies
+
+- Added: `opencv-python-headless 4.11.0.86`
+
+---
+
 ## [0.3.0] — 2026-04-09
 
 ### Breaking changes
