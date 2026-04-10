@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from backend.app import (
+from backend.processing import (
     _step_threshold,
     _step_blue_tolerance,
     _step_smoothing,
@@ -15,6 +15,8 @@ from backend.app import (
     _blue_mask,
     extract_signature,
     detect_presets,
+)
+from backend.config import (
     MODE_AUTO,
     MODE_DARK,
     MODE_BLUE,
@@ -354,7 +356,7 @@ class TestDetectPresets:
         assert presets["mode"] == MODE_AUTO
 
     def test_values_within_ranges(self, dark_stroke_image):
-        from backend.app import PARAM_RANGES
+        from backend.config import PARAM_RANGES
         presets = detect_presets(dark_stroke_image)
         for step in presets["steps"]:
             rng = PARAM_RANGES.get(step["effect"])
