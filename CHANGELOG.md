@@ -2,6 +2,27 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.3] — 2026-04-11
+
+### Infrastructure
+- **Docker Hardened Images** — base image switched from `python:3.14-slim` to `dhi.io/python:3.13-slim` (stable Python, near-zero CVEs, signed SBOMs, SLSA L3 provenance).
+- **Removed `curl` dependency** — healthcheck rewritten as a Python one-liner (`urllib.request`).
+- **Removed `useradd`/`USER appuser`** — DHI images already run as non-root by default.
+- **Version from git tag** — `APP_VERSION` is now injected at build time via Docker `ARG`/`ENV` from the git tag (no more hardcoded value). Falls back to `dev` for local builds.
+- **GHA workflow** — added `dhi.io` registry login + `build-args: APP_VERSION` pass-through.
+
+---
+
+## [0.3.2] — 2026-04-10
+
+### Web UI
+- **FX rack number input** — slot values can now be edited directly via `<input type="number">` instead of read-only display.
+- **Auto-detect button rework** — animated striped border during processing (`aria-busy`), distinct "ready" state, no longer blocked during busy.
+- **Settings toggle animated** — smooth collapse/expand using shared `toggleCollapse()` instead of instant `display: none`.
+- **CSS cleanup** — various minor tweaks and simplifications.
+
+---
+
 ## [0.3.1] — 2026-04-10
 
 ### Features
@@ -51,7 +72,7 @@ All notable changes since v0.1.2.
 - **Configurable pipeline** — effects are ordered, reorderable, and the same effect can appear multiple times (max 7 steps).
 - **Concurrency limiter** — `MAX_CONCURRENT_OPS` caps parallel CPU-heavy requests (DoS protection).
 - **Config warnings** — `/config` returns `warnings` array when configuration is not production-ready (CORS wildcard, low concurrency, high upload limit). Controllable via `HIDE_CONFIG_WARNINGS`.
-- **Version exposed** — `APP_VERSION` defined once in `app.py`, exposed via `/config` and displayed in the web UI footer.
+- **Version exposed** — `APP_VERSION` exposed via `/config` and displayed in the web UI footer (since 0.3.3, injected from git tag at build time).
 - **Alpha channel handling** — images with existing transparency are composited onto white before extraction. `X-Alpha-Composited` header signals this to the client.
 
 #### Web UI
@@ -109,7 +130,7 @@ New environment variables:
 
 ### Dependencies
 
-- Python 3.12 → 3.14-slim (Docker base image)
+- Python 3.12 → 3.14-slim (Docker base image, later migrated to DHI 3.13 in 0.3.3)
 - Added: `secure` (security headers)
 - Frontend: DOMPurify vendored locally
 

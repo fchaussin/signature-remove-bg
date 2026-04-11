@@ -153,4 +153,4 @@ def _build_config_warnings(client_ip: str | None = None) -> list[dict]:
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 # -- App version -------------------------------------------------------------
-APP_VERSION = "0.3.1"
+APP_VERSION = os.getenv("APP_VERSION", "dev")
