@@ -401,16 +401,30 @@ def _detect_contrast(ink_lum: np.ndarray, bg_lum_all: np.ndarray,
     return _clamp(base, "contrast")
 
 
+def _may_have_lines(binary: np.ndarray, min_lines: int = 3,
+                    fill_fraction: float = 0.3) -> bool:
+    """Cheap O(n) pre-filter: check if enough rows or columns are mostly dark.
+
+    A ruled line spans a large fraction of the image width (or height),
+    so rows containing a line have a high dark-pixel fraction.
+    Returns True if at least *min_lines* rows or columns exceed *fill_fraction*.
+    """
+    h, w = binary.shape
+    row_fracs = binary.sum(axis=1) / (w * 255)
+    col_fracs = binary.sum(axis=0) / (h * 255)
+    return (int(np.count_nonzero(row_fracs > fill_fraction)) >= min_lines or
+            int(np.count_nonzero(col_fracs > fill_fraction)) >= min_lines)
+
+
 def _detect_clean_lines(lum: np.ndarray) -> int:
     """Detect presence of ruled lines or grid patterns.
 
-    Uses morphological opening with long horizontal/vertical kernels on the
-    binarized luminosity.  Requires multiple parallel line structures to avoid
-    false positives from signature strokes or image edges.
+    Uses a cheap projection pre-filter (row/column dark-pixel fractions) to
+    bail out early on images without line structures, then falls back to
+    morphological opening for confirmation and counting.
     Returns a suggested clean_lines value (0 = none detected).
     """
     h, w = lum.shape
-    # Need a minimum image size for meaningful detection
     if min(h, w) < 100:
         return 0
 
@@ -421,7 +435,11 @@ def _detect_clean_lines(lum: np.ndarray) -> int:
     if dark_pixels < MIN_INK_PIXELS:
         return 0
 
-    # Kernel length = 25% of image width/height — lines span a good portion
+    # Fast pre-filter: bail out if no rows/columns look like lines
+    if not _may_have_lines(binary):
+        return 0
+
+    # Confirmed candidate — run morphological analysis
     h_kernel_len = max(60, w // 4)
     v_kernel_len = max(60, h // 4)
 
@@ -431,24 +449,19 @@ def _detect_clean_lines(lum: np.ndarray) -> int:
     v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_kernel_len))
     v_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel, iterations=1)
 
-    # Count distinct line structures using connected components
     h_count = 0
     if np.any(h_lines):
-        h_count = cv2.connectedComponents(h_lines)[0] - 1  # subtract background label
+        h_count = cv2.connectedComponents(h_lines)[0] - 1
     v_count = 0
     if np.any(v_lines):
         v_count = cv2.connectedComponents(v_lines)[0] - 1
 
-    # Require at least 3 parallel lines in one direction (ruled/grid paper)
     if h_count < 3 and v_count < 3:
         return 0
 
     h_pixels = int(np.count_nonzero(h_lines))
     v_pixels = int(np.count_nonzero(v_lines))
 
-    # Check per-direction: average thickness and coverage.
-    # Real ruled lines are thin and don't cover too much area.
-    # Noisy images create thick blobs or excessive coverage.
     max_thickness = max(5, int(min(h, w) * 0.015))
     total_area = h * w
     best_dir_count = 0
@@ -467,7 +480,6 @@ def _detect_clean_lines(lum: np.ndarray) -> int:
     if best_dir_count < 4:
         return 0
 
-    # Scale: more lines → higher value (3 lines → 30, 10+ → 80)
     value = int(min(30 + best_dir_count * 5, 80))
     return _clamp(value, "clean_lines")
 
