@@ -2,15 +2,23 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security audit](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml)
-[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Docker publish](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml)
+[![GitHub release](https://img.shields.io/github/v/release/fchaussin/signature-remove-bg?logo=github&label=release)](https://github.com/fchaussin/signature-remove-bg/releases/latest)
+[![Python 3.14+](https://img.shields.io/badge/Python-3.14+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-informational?logo=docker)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 [![Docker image size](https://img.shields.io/docker/image-size/fchaussin/signature-remove-bg/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 [![Docker pulls](https://img.shields.io/docker/pulls/fchaussin/signature-remove-bg?logo=docker&label=pulls)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 
 ![Demo](frontend/screenshots/demo.gif)
 
-Self-hosted signature background remover — ultra-lightweight alternative to heavy ML-based tools like rembg. Remove background from handwritten signatures (dark or blue ink) and export as transparent PNG or WebP. No machine learning, no cloud, no GPU: runs in Docker with ~30 MB RAM and processes images in under 100 ms. Includes a REST API and a built-in web UI.
+Ultra-lightweight No-ML signature removal: 30MB RAM and a tiny ~125MB Docker image. Extract handwritten signatures as transparent PNG/WebP — dark ink, blue ink, ruled paper. **< 100 ms** processing. Drop-in Docker container with REST API and web UI.
 
-> **Intelligent Auto-Detect** — Analyze your image in one click to suggest the best Mode, Threshold, and Smoothing values based on Otsu's method and chrominance analysis. It identifies ink types (dark or blue) and adapts to your scan's specific lighting conditions.
+- **Auto-detect** — one-click analysis (Otsu + chrominance) suggests optimal settings for your scan
+- **Effects pipeline** — threshold, blue tolerance, contrast, smoothing, line removal — reorderable, stackable
+- **Crop & erase** — isolate the signature area and clean up noise directly in the browser
+- **Multi-arch** — runs on amd64 and arm64 (Apple Silicon, Raspberry Pi, AWS Graviton)
+- **REST API** — `POST /extract` with binary or base64 output, `POST /analyze` for auto-detect
+- **i18n** — English, French (add a JSON file for more)
 
 ## Comparison with ML solutions
 
@@ -299,7 +307,9 @@ curl http://localhost:8000/health
 
 ```
 backend/
-  app.py               # FastAPI backend + extraction logic + auto-detect
+  app.py               # FastAPI backend — routes, validation, middleware
+  config.py            # Configuration — env vars, defaults, parameter ranges
+  processing.py        # Extraction pipeline + auto-detect (Otsu, chrominance)
 frontend/
   index.html           # HTML structure
   style.css            # Styles (CSS variables, responsive, a11y)
@@ -329,7 +339,7 @@ tests/
 benchmarks/
   bench_processing.py  # Processing pipeline benchmark (time + memory)
   bench_api.py         # API throughput benchmark (concurrent requests)
-  REPORT.md            # Latest benchmark results
+  YYYY-MM-DD_*.md      # Timestamped benchmark reports
 Dockerfile
 docker-compose.yml
 requirements.txt
@@ -395,7 +405,7 @@ MAX_IMAGE_PIXELS=25000000
 
 ## Technical specifications
 
-- **Runtime**: Python 3.12 / FastAPI / Uvicorn
+- **Runtime**: Python 3.14 / FastAPI / Uvicorn
 - **Platforms**: `linux/amd64` + `linux/arm64` (Mac Apple Silicon, Raspberry Pi, AWS Graviton)
 - **Dependencies**: Pillow, NumPy, OpenCV (headless), python-multipart
 - **Algorithm**: luminosity thresholding (BT.601 formula) + blue channel dominance detection + contrast enhancement + gradient edge smoothing + morphological line removal (OpenCV), applied as a configurable pipeline
