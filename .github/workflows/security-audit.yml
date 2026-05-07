@@ -18,10 +18,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Upgrade pip (mitigates CVE-2026-6357)
+        run: python -m pip install --upgrade pip
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: Run pip-audit
+        # CVE-2026-3219 (pip): no fix available upstream; not exploitable via our usage.
         run: |
           pip install pip-audit
-          pip-audit --strict --desc
+          pip-audit --strict --desc --ignore-vuln CVE-2026-3219
