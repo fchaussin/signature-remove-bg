@@ -2,6 +2,20 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.6] — 2026-05-07
+
+### Infrastructure
+- **Back to single-image multi-arch on DHI** — base switched to `dhi.io/python:3.14-debian13` which is now multi-arch (amd64 + arm64) natively. The hybrid arm64-standard / amd64-DHI strategy from `0.3.5` is no longer needed.
+- **Multi-stage Dockerfile** — builder stage uses `dhi.io/python:3.14-debian13-dev` (with pip + build tools), runtime stage uses `dhi.io/python:3.14-debian13` (minimal, non-root, near-zero CVEs, signed SBOMs, SLSA L3 provenance).
+- **Removed `Dockerfile.hardened`** — only one `Dockerfile` again.
+- **Removed `:hardened` / `:X.Y.Z-hardened` tags** — `:X.Y.Z` *is* the hardened image now.
+- **Single CI job** — multi-arch build via `docker/build-push-action@v6` with `linux/amd64,linux/arm64`.
+
+### Note about `0.3.5`
+The hybrid distribution shipped in `0.3.5` was never actually published to Docker Hub — the CI failed because `dhi.io/python:3.13-slim` was no longer in the catalogue. `0.3.6` is the first effective release since `0.3.4` on Docker Hub.
+
+---
+
 ## [0.3.5] — 2026-05-07
 
 ### Infrastructure
