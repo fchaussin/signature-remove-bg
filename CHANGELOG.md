@@ -2,6 +2,24 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.5] — 2026-05-07
+
+### Infrastructure
+- **Hybrid multi-arch distribution** — `:X.Y.Z` and `:latest` now ship a multi-arch manifest combining **arm64 standard** (`python:3.14-slim`) and **amd64 hardened** (`dhi.io/python:3.13-slim`). Users get the most secure variant available for their platform automatically.
+- **`:X.Y.Z-hardened` / `:hardened` tags** — single-arch amd64 DHI image for users who want to force the hardened variant explicitly.
+- **`Dockerfile.hardened`** — restored alongside `Dockerfile`, with `ARG DHI_IMAGE` for easy override.
+- **3-job CI pipeline** — `build-standard-arm64` and `build-hardened-amd64` push by digest; `publish` assembles manifests via `docker buildx imagetools create`. Each job gated on tag refs (`startsWith(github.ref, 'refs/tags/v')`) so `workflow_dispatch` on `main` no longer pollutes Docker Hub.
+- **`dhi.io` registry login** — added in the hardened build job (reuses Docker Hub credentials).
+
+---
+
+## [0.3.4] — 2026-04-13
+
+### Documentation
+- Documentation refresh.
+
+---
+
 ## [0.3.3] — 2026-04-11
 
 ### Infrastructure
