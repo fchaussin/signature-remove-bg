@@ -6,4 +6,4 @@ Pillow==12.2.0
 numpy==2.4.4
 python-dotenv==1.2.2
 opencv-python-headless==4.11.0.86
-secure==1.0.1
+secure==2.0.1
