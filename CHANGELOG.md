@@ -2,6 +2,26 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.7] — 2026-05-25
+
+### Security
+- **starlette `0.49.1` → `1.1.0`** — fixes PYSEC-2026-161 (Host header URL-reconstruction can lead to auth bypass when authentication depends on the reconstructed path). Reported by the weekly `pip-audit` workflow.
+- **DOMPurify `3.2.4` → `3.4.5`** (vendored, `frontend/vendor/purify.min.js`) — clears several medium-severity advisories (CVE-2026-41238/41239/41240, GHSA-cjmm-f4jc-qw8r, others). Not exploitable in the project's strict `ALLOWED_TAGS`-only sanitize config, but keeps the vendored file current.
+
+### Dependencies
+- `fastapi 0.135.3 → 0.136.3`
+- `uvicorn 0.44.0 → 0.48.0`
+- `python-multipart 0.0.27 → 0.0.29`
+- `numpy 2.4.4 → 2.4.6`
+- `opencv-python-headless 4.11.0.86 → 4.13.0.92`
+- `secure 1.0.1 → 2.0.1` (verified at runtime — security headers intact)
+- `pytest 8.3.5 → 9.0.3` (146/146 tests green)
+
+### Documentation
+- `DEPENDENCIES.md` — version headers synced with new pins, Docker section rewritten to reflect the DHI base images and Python `urllib.request` healthcheck (was stale, still referenced `python:3.12-slim` + `curl`).
+
+---
+
 ## [0.3.6] — 2026-05-07
 
 ### Infrastructure

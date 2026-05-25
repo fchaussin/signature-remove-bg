@@ -114,16 +114,19 @@ No build step, no bundler. All JS is loaded via `<script>` tags in `index.html`.
 
 ## Docker
 
-### Base image: `python:3.12-slim`
+### Base images: `dhi.io/python:3.14-debian13` (runtime) + `…-dev` (builder)
 
-- **Why**: Minimal Debian-based image with Python 3.12. Slim variant keeps the image small (~120 MB final) while still providing pip and essential system libraries.
-- **Watch out**: `slim` images don't include build tools (`gcc`, `make`). If a future Python dependency requires compilation (e.g., C extensions), switch to the full `python:3.12` image for the build stage, or use a multi-stage build.
+- **Why**: Docker Hardened Images — minimal, non-root, near-zero CVEs, signed SBOMs, SLSA L3 provenance. Multi-arch (amd64 + arm64). Builder variant ships pip and build tools for compiling/installing wheels; runtime variant strips them out for a smaller, lower-attack-surface image.
+- **How**: Multi-stage `Dockerfile` — `dhi.io/python:3.14-debian13-dev` installs dependencies into `/install`, then `dhi.io/python:3.14-debian13` copies them to `/usr/local`. Image tags are overridable via the `DHI_BUILD` / `DHI_RUNTIME` build args.
+- **Watch out**:
+  - DHI images require authentication to `dhi.io` for `docker pull`. The CI workflow logs in via Docker Hub credentials.
+  - Runtime image has no shell utilities (`bash`, `curl`, `apt`). Anything needed at runtime must be Python-only or installed in the builder stage and copied across.
+  - DHI tags follow upstream Python versions but may lag a few days. If the exact tag is missing, the CI build will fail with a `manifest unknown` error.
 
-### System package: `curl`
+### Healthcheck: Python `urllib.request`
 
-- **Why**: Required for the `HEALTHCHECK` directive (`curl -f http://localhost:8000/health`).
-- **How**: Installed via `apt-get` in the Dockerfile, with cache cleaned immediately after.
-- **Watch out**: `curl` adds ~5 MB to the image. An alternative is `wget` (already present in some base images) or a Python-based health check script, but `curl` is the most standard approach for Docker health checks.
+- **Why**: Validate the container is serving `/health`. Implemented in pure Python (`python -c "import urllib.request; urllib.request.urlopen(...)"`) so no extra system package (curl/wget) is required — keeping the DHI runtime image minimal.
+- **How**: `HEALTHCHECK` directive in the Dockerfile invokes the Python one-liner every 30s.
 
 ---
 
