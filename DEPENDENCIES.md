@@ -79,9 +79,9 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 
 No build step, no bundler. All JS is loaded via `<script>` tags in `index.html`.
 
-### DOMPurify `3.2.4`
+### DOMPurify `3.4.5`
 
-- **Where**: `frontend/vendor/purify.min.js` (~22 KB, vendored locally)
+- **Where**: `frontend/vendor/purify.min.js` (~26 KB, vendored locally)
 - **Why**: Sanitizes HTML strings from translation files (`data-i18n-html`) before insertion via `innerHTML`. Prevents XSS from malicious or corrupted language files.
 - **How**: Called in `i18n.js` via `DOMPurify.sanitize(html, config)` with a strict whitelist: only `<strong>`, `<em>`, `<br>`, `<kbd>`, `<b>`, `<i>`, `<span>` allowed, zero attributes allowed.
 - **Watch out**:
