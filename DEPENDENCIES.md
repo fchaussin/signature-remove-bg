@@ -8,19 +8,19 @@ This document explains **why** each dependency is used, **how** it integrates, a
 
 All Python dependencies are pinned in `requirements.txt` for reproducible builds.
 
-### FastAPI `0.135.3`
+### FastAPI `0.136.3`
 
 - **Why**: Lightweight async web framework with built-in request validation (Query params with `enum`, `ge`, `le`), automatic OpenAPI schema, and native Starlette middleware support.
 - **How**: Single `backend/app.py` — defines routes (`/extract`, `/config`, `/health`, `/`) and middlewares (CORS, security headers).
 - **Watch out**: FastAPI follows Starlette closely. Major Starlette upgrades can introduce breaking changes in middleware or response handling. Always test the security headers middleware after upgrading.
 
-### Uvicorn `0.44.0`
+### Uvicorn `0.48.0`
 
 - **Why**: ASGI server to run FastAPI. Fast, lightweight, production-ready.
 - **How**: Used as the CMD in Dockerfile and in `__main__` for local dev. Single-worker by default (sufficient for this lightweight service).
 - **Watch out**: For multi-worker deployments, switch to `gunicorn` with `uvicorn.workers.UvicornWorker`. Not needed here given the low resource footprint.
 
-### python-multipart `0.0.24`
+### python-multipart `0.0.29`
 
 - **Why**: Required by FastAPI to parse `multipart/form-data` file uploads (`UploadFile`).
 - **How**: Implicit — FastAPI imports it internally when handling file uploads. Not imported directly in `backend/app.py`.
@@ -35,13 +35,13 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
   - `Image.MAX_IMAGE_PIXELS` must be set **before** any `Image.open()` call — currently done at module level.
   - The `verify()` + re-open pattern is intentional: `verify()` checks file integrity but invalidates the image object, so we must re-open for processing.
 
-### NumPy `2.4.4`
+### NumPy `2.4.6`
 
 - **Why**: Fast pixel-level operations for signature extraction (luminosity calculation, channel comparison, mask building). Orders of magnitude faster than pure Python loops.
 - **How**: Used in `backend/app.py` — converts PIL image to array, applies vectorized operations, then converts back.
 - **Watch out**: NumPy 2.x introduced breaking changes vs 1.x (dtype behavior, deprecated APIs). If downgrading to 1.x, test the `int16` dtype cast and boolean mask operations.
 
-### opencv-python-headless `4.11.0.86`
+### opencv-python-headless `4.13.0.92`
 
 - **Why**: Morphological operations for ruled line / grid pattern detection and removal (`clean_lines` effect). The headless variant avoids pulling in GUI dependencies (Qt/GTK).
 - **How**: Used in `backend/app.py` — `cv2.morphologyEx()` with horizontal/vertical kernels to detect line structures, `cv2.connectedComponents()` for line counting in auto-detection, `cv2.threshold()` for binarization.
@@ -64,7 +64,7 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
   - The response includes `Cache-Control: no-store` to prevent caching of image data.
   - On the frontend, the data URI is validated against a strict regex and the mime type is whitelisted. The textarea is cleared on popup close.
 
-### secure `1.0.1`
+### secure `2.0.1`
 
 - **Why**: Sets HTTP security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) using typed builders instead of error-prone raw strings. Zero external dependencies.
 - **How**: `Secure()` object configured with `ContentSecurityPolicy`, `XFrameOptions`, `ReferrerPolicy` builders. Applied via `set_headers()` (synchronous) in a Starlette middleware. `Permissions-Policy` is set manually as a raw header.
