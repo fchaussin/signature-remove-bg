@@ -37,16 +37,21 @@
 
 ### Docker Hub (quickest)
 
+**From any terminal** — including Docker Desktop's built-in terminal (`>_` icon at the bottom of the app):
+
 ```bash
 docker run -d -p 8000:8000 --name signature-remove-bg fchaussin/signature-remove-bg
 ```
 
 Open `http://localhost:8000` — that's it. Multi-architecture image (amd64 + arm64).
 
-> **Docker Desktop UI users** — the "Run" button does **not** publish the port by default; you'll hit `ERR_CONNECTION_REFUSED` on `localhost:8000`. Either:
-> - Use the `docker run` command above (recommended), **or**
-> - In the "Run" dialog, expand **Optional settings** → set **Host port = 8000**, **or**
-> - Use Compose (next section) — `docker compose up -d` always publishes the port correctly.
+**From Docker Desktop UI only** — three steps, **step 2 is the one most people miss**:
+
+1. Search `fchaussin/signature-remove-bg` → click **Run**
+2. Expand **Optional settings**
+3. Set **Host port** = `8000` → click **Run**
+
+Open `http://localhost:8000`. (Without step 2, the port stays unpublished and Chrome returns `ERR_CONNECTION_REFUSED`.)
 
 ### From source (customizable)
 
