@@ -4,6 +4,7 @@
 [![Security audit](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml)
 [![Docker publish](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml)
 [![GitHub release](https://img.shields.io/github/v/release/fchaussin/signature-remove-bg?logo=github&label=release)](https://github.com/fchaussin/signature-remove-bg/releases/latest)
+[![Docker Hub version](https://img.shields.io/docker/v/fchaussin/signature-remove-bg?logo=docker&label=docker%20hub&sort=semver)](https://hub.docker.com/r/fchaussin/signature-remove-bg/tags)
 [![Python 3.14+](https://img.shields.io/badge/Python-3.14+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-informational?logo=docker)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 [![Docker image size](https://img.shields.io/docker/image-size/fchaussin/signature-remove-bg/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
@@ -41,6 +42,11 @@ docker run -d -p 8000:8000 --name signature-remove-bg fchaussin/signature-remove
 ```
 
 Open `http://localhost:8000` — that's it. Multi-architecture image (amd64 + arm64).
+
+> **Docker Desktop UI users** — the "Run" button does **not** publish the port by default; you'll hit `ERR_CONNECTION_REFUSED` on `localhost:8000`. Either:
+> - Use the `docker run` command above (recommended), **or**
+> - In the "Run" dialog, expand **Optional settings** → set **Host port = 8000**, **or**
+> - Use Compose (next section) — `docker compose up -d` always publishes the port correctly.
 
 ### From source (customizable)
 
