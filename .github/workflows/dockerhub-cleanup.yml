@@ -1,0 +1,84 @@
+name: Cleanup Docker Hub tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Comma-separated tags to delete (e.g. 0.3.7,0.3.6). Refuses 'latest', '0', '0.3', and any tag sharing the same digest as 'latest'."
+        required: true
+        type: string
+
+jobs:
+  delete:
+    name: Delete tags from Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete tags
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REPO: fchaussin/signature-remove-bg
+          TAGS_INPUT: ${{ inputs.tags }}
+        run: |
+          set -euo pipefail
+
+          # Auth: exchange username + PAT for a JWT
+          TOKEN=$(curl -fsS -H "Content-Type: application/json" -X POST \
+            -d "{\"username\":\"$DOCKERHUB_USERNAME\",\"password\":\"$DOCKERHUB_TOKEN\"}" \
+            https://hub.docker.com/v2/users/login/ | jq -r .token)
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::Authentication to Docker Hub failed"
+            exit 1
+          fi
+
+          # Discover the digest of 'latest' so we refuse to delete any alias
+          LATEST_DIGEST=$(curl -fsS \
+            -H "Authorization: JWT $TOKEN" \
+            "https://hub.docker.com/v2/repositories/$REPO/tags/latest/" | jq -r .digest)
+          echo "latest -> digest=$LATEST_DIGEST"
+
+          PROTECTED_NAMES="latest 0 0.3"
+          FAIL=0
+
+          IFS=',' read -ra TAGS <<< "$TAGS_INPUT"
+          for RAW in "${TAGS[@]}"; do
+            TAG=$(echo "$RAW" | xargs)
+            [ -n "$TAG" ] || continue
+
+            # Refuse protected names
+            for P in $PROTECTED_NAMES; do
+              if [ "$TAG" = "$P" ]; then
+                echo "::error::Refusing to delete protected tag '$TAG'"
+                FAIL=1
+                continue 2
+              fi
+            done
+
+            # Refuse anything sharing the digest of 'latest'
+            TAG_DIGEST=$(curl -fsS \
+              -H "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/repositories/$REPO/tags/$TAG/" \
+              | jq -r .digest 2>/dev/null || echo "")
+            if [ -z "$TAG_DIGEST" ] || [ "$TAG_DIGEST" = "null" ]; then
+              echo "::warning::Tag '$TAG' not found on Docker Hub — skipping"
+              continue
+            fi
+            if [ "$TAG_DIGEST" = "$LATEST_DIGEST" ]; then
+              echo "::error::Refusing to delete '$TAG' — same digest as 'latest'"
+              FAIL=1
+              continue
+            fi
+
+            echo "Deleting $REPO:$TAG (digest=$TAG_DIGEST)"
+            HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/repositories/$REPO/tags/$TAG/")
+            if [ "$HTTP" = "204" ]; then
+              echo "  OK (HTTP 204)"
+            else
+              echo "::error::Delete failed for '$TAG' (HTTP $HTTP)"
+              FAIL=1
+            fi
+          done
+
+          exit $FAIL
