@@ -2,6 +2,13 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.8] — 2026-05-27
+
+### Fix
+- **Docker image runtime crash** (`ModuleNotFoundError: No module named 'uvicorn'`) — the multi-stage Dockerfile installed deps with `pip install --prefix=/install` then copied to `/usr/local`, which worked on `python:3.14-slim` (Python rooted at `/usr/local`) but breaks on `dhi.io/python:3.14-debian13` (Python rooted at `/usr`, so `/usr/local/lib/python3.14/site-packages` is not on `sys.path`). The runtime `uvicorn` script was present but its `import uvicorn` failed. Switched the builder to a real venv at `/opt/venv` and copy it whole into the runtime image, with `PATH` + `VIRTUAL_ENV` set accordingly. This is layout-agnostic and survives Python minor-version bumps.
+
+---
+
 ## [0.3.7] — 2026-05-25
 
 ### Security

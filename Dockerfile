@@ -5,7 +5,8 @@ FROM ${DHI_BUILD} AS builder
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 FROM ${DHI_RUNTIME}
 
@@ -15,7 +16,9 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
 
-COPY --from=builder /install /usr/local
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    VIRTUAL_ENV=/opt/venv
 
 COPY backend/ backend/
 COPY frontend/ frontend/
