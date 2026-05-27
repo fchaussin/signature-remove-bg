@@ -35,6 +35,22 @@
 
 ## Get started
 
+### One-line install (recommended — Docker Desktop too)
+
+The installer pulls the image, starts the container **with the port correctly published** (the step Docker Desktop's "Run" dialog misses by default), waits for the service to be ready, and opens `http://localhost:8000` in your browser. The container then appears in Docker Desktop with start / stop / logs all working from the UI.
+
+**Linux / macOS / Git-Bash on Windows:**
+```bash
+curl -sL https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/install.sh | bash
+```
+
+**Windows PowerShell:**
+```powershell
+iwr -useb https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/install.ps1 | iex
+```
+
+Override the host port with `PORT=9000` (bash) / `$env:PORT = "9000"` (PowerShell) before piping. Source: [`install.sh`](https://github.com/fchaussin/signature-remove-bg/blob/main/install.sh) / [`install.ps1`](https://github.com/fchaussin/signature-remove-bg/blob/main/install.ps1) — inspect before running if you prefer.
+
 ### Docker Hub (quickest)
 
 **From any terminal** — including Docker Desktop's built-in terminal (`>_` icon at the bottom of the app):

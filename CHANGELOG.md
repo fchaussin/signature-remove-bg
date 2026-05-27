@@ -2,6 +2,29 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.10] — 2026-05-27
+
+This release is a UX-only update aimed squarely at the Docker Desktop "Run an image" workflow, where the host port is not published unless the user expands the Optional settings panel — a step most people miss, leaving them with `ERR_CONNECTION_REFUSED` on `localhost:8000` and the misleading `Uvicorn running on http://0.0.0.0:8000` line as their only clue. Two fixes ship together:
+
+### UX — clear startup URL in container logs
+- Uvicorn's default startup banner reads `Uvicorn running on http://0.0.0.0:<port>`. `0.0.0.0` is the *bind* address (all interfaces); browsers reject it as a destination with `ERR_ADDRESS_INVALID`. The app now installs a `logging.Filter` on `uvicorn.error` that rewrites that single record in place at emission time into `Ready — open http://localhost:<port> in your browser`, which is what a user on the host actually needs to open. Every other uvicorn log line is left untouched. The bind address is unchanged — the service still listens on `0.0.0.0` so Docker port mapping continues to work.
+
+### UX — one-line installer scripts
+- New `install.sh` (Linux / macOS / Git-Bash on Windows) and `install.ps1` (native Windows PowerShell). They:
+  1. verify Docker is installed and running (clear error otherwise),
+  2. pull `fchaussin/signature-remove-bg:latest` (or `$TAG`),
+  3. remove any prior `signature-remove-bg` container so the script is idempotent,
+  4. `docker run -d -p 8000:8000 --restart unless-stopped …` — port published correctly, **the** step Docker Desktop's UI misses by default,
+  5. poll `/health` up to 30 s,
+  6. open `http://localhost:8000` in the default browser.
+- Documented as the recommended path on the Docker Hub overview (`README.md`). One-liner:
+  ```bash
+  curl -sL https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/install.sh | bash
+  ```
+- The container then appears in Docker Desktop's Containers tab with the port mapped — UI start / stop / logs work normally from there, so the friction is contained to the first run.
+
+---
+
 ## [0.3.9] — 2026-05-27
 
 No runtime change vs `0.3.8`. This release ships only CI hardening and documentation improvements, retagged so the rolling tags (`:latest`, `:0`, `:0.3`) point at a known-good build under the new release notes.

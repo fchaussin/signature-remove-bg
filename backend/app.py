@@ -66,6 +66,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger("signature-remove-bg")
 
+
+class _UvicornStartupHintFilter(logging.Filter):
+    """Rewrite uvicorn's startup banner so users get a working URL.
+
+    Uvicorn logs ``Uvicorn running on http://0.0.0.0:<port>`` once the server
+    is ready. ``0.0.0.0`` is the bind address (all interfaces) — it is not a
+    usable destination from a browser; Chrome/Edge reject it outright with
+    ``ERR_ADDRESS_INVALID``. Users following the log literally end up confused.
+    Rewrite the line at emission time to point at ``http://localhost:<port>``,
+    which is what they actually want to open."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "Uvicorn running on http://0.0.0.0:" in msg:
+            try:
+                port = msg.split("0.0.0.0:")[1].split(" ", 1)[0]
+            except IndexError:
+                port = ""
+            url = f"http://localhost:{port}" if port else "http://localhost"
+            record.msg = f"Ready — open {url} in your browser  (Press CTRL+C to quit)"
+            record.args = ()
+        return True
+
+
+logging.getLogger("uvicorn.error").addFilter(_UvicornStartupHintFilter())
+
+
 _SAFE_LOG_RE = re.compile(r"[^\x20-\x7E]")  # A03 — strip non-printable / newlines
 
 
