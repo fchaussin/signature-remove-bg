@@ -52,38 +52,43 @@ if ($existing) {
     docker rm -f $Name | Out-Null
 }
 
-# 3b. Pick a free host port if the requested one is already in use by another process.
+# 3b. If the requested host port is already taken, do NOT scan 8001/8002/...
+#     (those are equally likely to be someone's dev server). Hand the choice
+#     to Docker, which atomically reserves a port from the ephemeral range
+#     (typically 49152+ on Windows/Darwin, 32768+ on Linux) — guaranteed not
+#     to collide with another user-space service.
 function Test-PortFree {
     param([int]$P)
     try {
         $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $P)
-        $l.Start()
-        $l.Stop()
+        $l.Start(); $l.Stop()
         return $true
     } catch {
         return $false
     }
 }
 
+$AutoPort = $false
 if (-not (Test-PortFree -P $Port)) {
-    $requested = $Port
-    Write-Warn "Host port $requested is already in use by another process"
-    $found = 0
-    for ($i = 1; $i -le 100; $i++) {
-        $try = $requested + $i
-        if (Test-PortFree -P $try) { $found = $try; break }
-    }
-    if ($found -eq 0) {
-        Write-Fail "No free port found in $requested..$($requested + 100). Stop the conflicting service or set `$env:PORT manually."
-    }
-    Write-Warn "Falling back to host port $found"
-    $Port = $found
+    Write-Warn "Host port $Port is already in use"
+    Write-Info "Letting Docker assign a free ephemeral host port (sequential fallback would just chase the next collision)"
+    $AutoPort = $true
 }
 
 # 4. Run with the port correctly published
-Write-Info "Starting container on port $Port ..."
-docker run -d --name $Name -p "${Port}:8000" --restart unless-stopped $Image | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Fail "docker run failed" }
+if ($AutoPort) {
+    Write-Info "Starting container ..."
+    docker run -d --name $Name --publish-all --restart unless-stopped $Image | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Fail "docker run failed" }
+    # docker port emits one line per binding (v4 + v6) — first line, port is after the last colon
+    $first = (docker port $Name "8000/tcp" | Select-Object -First 1)
+    if (-not $first) { Write-Fail "Container started but the assigned host port could not be discovered. Run 'docker port $Name 8000/tcp' to inspect." }
+    $Port = $first.Split(':')[-1].Trim()
+} else {
+    Write-Info "Starting container on port $Port ..."
+    docker run -d --name $Name -p "${Port}:8000" --restart unless-stopped $Image | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Fail "docker run failed" }
+}
 Write-Ok "Container started (host port $Port -> container port 8000)"
 
 # 5. Wait for /health

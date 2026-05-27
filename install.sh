@@ -53,33 +53,40 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
     docker rm -f "$NAME" >/dev/null
 fi
 
-# 3b. Pick a free host port if the requested one is already in use by another process.
-#     Uses bash's /dev/tcp — built-in, no external tool required.
+# 3b. If the requested host port is already taken, do NOT scan 8001/8002/...
+#     (those are equally likely to be someone's dev server). Hand the choice
+#     to Docker, which atomically reserves a port from the ephemeral range
+#     (typically 32768+ on Linux, 49152+ on Darwin) — guaranteed not to
+#     collide with another user-space service. We then read back the port
+#     Docker assigned via `docker port`.
 port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
+AUTO_PORT=0
 if port_in_use "$PORT"; then
-    REQUESTED_PORT="$PORT"
-    warn "Host port $REQUESTED_PORT is already in use by another process"
-    NEW_PORT=""
-    for i in $(seq 1 100); do
-        try_port=$((REQUESTED_PORT + i))
-        if ! port_in_use "$try_port"; then
-            NEW_PORT="$try_port"
-            break
-        fi
-    done
-    [ -n "$NEW_PORT" ] || fail "No free port found in $REQUESTED_PORT..$((REQUESTED_PORT + 100)). Stop the conflicting service or set PORT=<other> manually."
-    warn "Falling back to host port $NEW_PORT"
-    PORT="$NEW_PORT"
+    warn "Host port $PORT is already in use"
+    info "Letting Docker assign a free ephemeral host port (sequential fallback would just chase the next collision)"
+    AUTO_PORT=1
 fi
 
 # 4. Run with the port correctly published
-info "Starting container on port $PORT ..."
-docker run -d \
-    --name "$NAME" \
-    -p "${PORT}:8000" \
-    --restart unless-stopped \
-    "$IMAGE" >/dev/null
+if [ "$AUTO_PORT" -eq 1 ]; then
+    info "Starting container ..."
+    docker run -d \
+        --name "$NAME" \
+        --publish-all \
+        --restart unless-stopped \
+        "$IMAGE" >/dev/null
+    # docker port output is one line per binding (v4 + v6) — keep first, take the port after the last colon
+    PORT=$(docker port "$NAME" 8000/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}')
+    [ -n "$PORT" ] || fail "Container started but the assigned host port could not be discovered. Run 'docker port $NAME 8000/tcp' to inspect."
+else
+    info "Starting container on port $PORT ..."
+    docker run -d \
+        --name "$NAME" \
+        -p "${PORT}:8000" \
+        --restart unless-stopped \
+        "$IMAGE" >/dev/null
+fi
 ok "Container started (host port $PORT -> container port 8000)"
 
 # 5. Wait for /health
