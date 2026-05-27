@@ -1,6 +1,6 @@
 # Signature Remove Background
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/fchaussin/signature-remove-bg/blob/main/LICENSE)
 [![Security audit](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/security-audit.yml)
 [![Docker publish](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/fchaussin/signature-remove-bg/actions/workflows/docker-publish.yml)
 [![GitHub release](https://img.shields.io/github/v/release/fchaussin/signature-remove-bg?logo=github&label=release)](https://github.com/fchaussin/signature-remove-bg/releases/latest)
@@ -10,7 +10,7 @@
 [![Docker image size](https://img.shields.io/docker/image-size/fchaussin/signature-remove-bg/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 [![Docker pulls](https://img.shields.io/docker/pulls/fchaussin/signature-remove-bg?logo=docker&label=pulls)](https://hub.docker.com/r/fchaussin/signature-remove-bg)
 
-![Demo](frontend/screenshots/demo.gif)
+![Demo](https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/frontend/screenshots/demo.gif)
 
 **Optimized for photos and scans of handwritten signatures** — turn them into transparent PNG/WebP via a built-in **Web UI** or **REST API**, ready to drop into PDFs, contracts or images. Ultra-lightweight, No-ML: dark ink, blue ink, ruled paper, **< 100 ms** processing, 30 MB RAM, ~125 MB Docker image. Drop-in Docker container.
 
@@ -64,7 +64,7 @@ Open `http://localhost:8000` in a browser.
 
 ### Uploading an image
 
-![Upload zone](frontend/screenshots/dropzone.png)
+![Upload zone](https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/frontend/screenshots/dropzone.png)
 
 Three import methods:
 1. **Drag & drop** a scan, capture or image onto the upload zone
@@ -75,13 +75,13 @@ The upload zone stays visible at the top of the page so you can load a new image
 
 ### Editor
 
-![Editor view](frontend/screenshots/editor.png)
+![Editor view](https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/frontend/screenshots/editor.png)
 
 After uploading, the editor appears with a side-by-side view: original image on the left, extracted signature on the right. A before/after comparison slider lets you visualize the extraction result directly.
 
 ### Controls and effects rack
 
-![Controls and effects rack](frontend/screenshots/controls.png)
+![Controls and effects rack](https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/frontend/screenshots/controls.png)
 
 The controls panel provides:
 
@@ -147,7 +147,7 @@ The **`</>`** button in the preset bar toggles a Swagger-style API block showing
 
 ### Cropping
 
-![Crop tool](frontend/screenshots/crop.png)
+![Crop tool](https://raw.githubusercontent.com/fchaussin/signature-remove-bg/main/frontend/screenshots/crop.png)
 
 The **Crop** button (on the original panel) opens a cropping tool with 4 edge handles (top, bottom, left, right) that can be dragged inward. Excluded areas are dimmed in real time. Applying the crop updates the original image and re-triggers extraction automatically.
 
