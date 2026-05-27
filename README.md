@@ -12,7 +12,7 @@
 
 ![Demo](frontend/screenshots/demo.gif)
 
-Ultra-lightweight No-ML signature removal: 30MB RAM and a tiny ~125MB Docker image. Extract handwritten signatures as transparent PNG/WebP — dark ink, blue ink, ruled paper. **< 100 ms** processing. Drop-in Docker container with REST API and web UI.
+**Optimized for photos and scans of handwritten signatures** — turn them into transparent PNG/WebP, ready to drop into PDFs, contracts or images. Ultra-lightweight, No-ML: dark ink, blue ink, ruled paper, **< 100 ms** processing, 30 MB RAM, ~125 MB Docker image. Drop-in Docker container with REST API and web UI.
 
 - **Auto-detect** — one-click analysis (Otsu + chrominance) suggests optimal settings for your scan
 - **Effects pipeline** — threshold, blue tolerance, contrast, smoothing, line removal — reorderable, stackable
