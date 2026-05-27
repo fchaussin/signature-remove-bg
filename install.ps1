@@ -45,18 +45,46 @@ docker pull $Image | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Fail "docker pull failed" }
 Write-Ok "Image pulled"
 
-# 3. Idempotent cleanup
+# 3. Idempotent cleanup (before the port check so freeing our own port doesn't cause a fallback)
 $existing = docker ps -a --format '{{.Names}}' | Where-Object { $_ -eq $Name }
 if ($existing) {
     Write-Warn "Removing existing container '$Name'"
     docker rm -f $Name | Out-Null
 }
 
+# 3b. Pick a free host port if the requested one is already in use by another process.
+function Test-PortFree {
+    param([int]$P)
+    try {
+        $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $P)
+        $l.Start()
+        $l.Stop()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+if (-not (Test-PortFree -P $Port)) {
+    $requested = $Port
+    Write-Warn "Host port $requested is already in use by another process"
+    $found = 0
+    for ($i = 1; $i -le 100; $i++) {
+        $try = $requested + $i
+        if (Test-PortFree -P $try) { $found = $try; break }
+    }
+    if ($found -eq 0) {
+        Write-Fail "No free port found in $requested..$($requested + 100). Stop the conflicting service or set `$env:PORT manually."
+    }
+    Write-Warn "Falling back to host port $found"
+    $Port = $found
+}
+
 # 4. Run with the port correctly published
 Write-Info "Starting container on port $Port ..."
 docker run -d --name $Name -p "${Port}:8000" --restart unless-stopped $Image | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Fail "docker run failed" }
-Write-Ok "Container started"
+Write-Ok "Container started (host port $Port -> container port 8000)"
 
 # 5. Wait for /health
 Write-Info "Waiting for service to be ready ..."

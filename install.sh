@@ -47,10 +47,30 @@ info "Pulling $IMAGE ..."
 docker pull "$IMAGE" >/dev/null
 ok "Image pulled"
 
-# 3. Idempotent cleanup
+# 3. Idempotent cleanup (before the port check so freeing our own port doesn't cause a fallback)
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
     warn "Removing existing container '$NAME'"
     docker rm -f "$NAME" >/dev/null
+fi
+
+# 3b. Pick a free host port if the requested one is already in use by another process.
+#     Uses bash's /dev/tcp — built-in, no external tool required.
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+if port_in_use "$PORT"; then
+    REQUESTED_PORT="$PORT"
+    warn "Host port $REQUESTED_PORT is already in use by another process"
+    NEW_PORT=""
+    for i in $(seq 1 100); do
+        try_port=$((REQUESTED_PORT + i))
+        if ! port_in_use "$try_port"; then
+            NEW_PORT="$try_port"
+            break
+        fi
+    done
+    [ -n "$NEW_PORT" ] || fail "No free port found in $REQUESTED_PORT..$((REQUESTED_PORT + 100)). Stop the conflicting service or set PORT=<other> manually."
+    warn "Falling back to host port $NEW_PORT"
+    PORT="$NEW_PORT"
 fi
 
 # 4. Run with the port correctly published
@@ -60,7 +80,7 @@ docker run -d \
     -p "${PORT}:8000" \
     --restart unless-stopped \
     "$IMAGE" >/dev/null
-ok "Container started"
+ok "Container started (host port $PORT -> container port 8000)"
 
 # 5. Wait for /health
 info "Waiting for service to be ready ..."
