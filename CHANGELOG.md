@@ -2,6 +2,23 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.9] — 2026-05-27
+
+No runtime change vs `0.3.8`. This release ships only CI hardening and documentation improvements, retagged so the rolling tags (`:latest`, `:0`, `:0.3`) point at a known-good build under the new release notes.
+
+### CI
+- **Smoke-test gate before publish** (`docker-publish.yml`) — a new `smoke-test` job builds the image for `linux/amd64`, runs it, and probes `/health` for up to 30 s before the multi-arch `build-and-push` job runs. A container that crashes at boot is no longer published to Docker Hub. This catches exactly the class of regression that shipped in `0.3.6`/`0.3.7` (the `uvicorn` `ModuleNotFoundError` fixed in `0.3.8`).
+- **Docker Hub overview auto-sync** (`dockerhub-description.yml`) — pushes `README.md` to the Docker Hub repository overview on every commit to `main` that touches `README.md` (or via `workflow_dispatch`). Avoids the overview going stale relative to the repo.
+- **Docker Hub tag cleanup workflow** (`dockerhub-cleanup.yml`) — manual `workflow_dispatch` action that deletes a user-supplied list of tags via the Docker Hub v2 API, with safety guards refusing protected rolling names and any alias of `latest`. Used to retire `0.3.7`, `0.3.6`, `0.3.4`, `0.3.2`.
+
+### Documentation
+- **README intro reframed** around the actual input scope — "Optimized for photos and scans of handwritten signatures" — with Web UI and REST API surfaced in the lead sentence (previously buried at the end of the paragraph).
+- **Docker Desktop quick-start rewritten** — leads with the built-in `>_` terminal (zero-confusion path: explicit `docker run -p 8000:8000` sidesteps the unpublished-port footgun) and documents the UI-only path as a clear three-step recipe with the easy-to-miss "Optional settings" step flagged.
+- **All image paths and the LICENSE link converted to absolute URLs** — the README is the source of the Docker Hub overview, which renders markdown in isolation; relative paths broke the demo gif and screenshots on Docker Hub.
+- **New "Docker Hub version" badge** alongside the GitHub release badge — surfaces any drift between a tagged release and the image actually published.
+
+---
+
 ## [0.3.8] — 2026-05-27
 
 ### Fix
