@@ -3,7 +3,7 @@ starlette==1.1.0
 uvicorn==0.48.0
 python-multipart==0.0.29
 Pillow==12.2.0
-numpy==2.4.6
+numpy==2.5.0
 python-dotenv==1.2.2
 opencv-python-headless==4.13.0.92
 secure==2.0.1
