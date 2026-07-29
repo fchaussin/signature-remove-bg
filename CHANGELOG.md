@@ -2,6 +2,18 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.11] — 2026-07-29
+
+Security patch. Bumps three pinned dependencies to clear the 26 known vulnerabilities flagged by the weekly `pip-audit` workflow, which had been failing since 2026-06-22. No runtime behaviour change — resolution stays compatible with `fastapi==0.136.3` and the full test suite (146 tests) passes.
+
+### Security
+- **Pillow `12.2.0` → `12.3.0`** — 13 CVEs, chiefly decompression-bomb protection bypasses in the PCF / BDF / GD font and image loaders (dimensions passed to allocation without `Image._decompression_bomb_check()`), plus a `WindowsViewer.get_command()` shell-command injection via an unescaped file path in a `shell=True` subprocess call.
+- **python-multipart `0.0.29` → `0.0.32`** — PYSEC-2026-3036 / 3037 / 3040 (multipart/form-data parsing, the peer dependency FastAPI uses for `UploadFile`).
+- **starlette `1.1.0` → `1.3.1`** — PYSEC-2026-248 / 249.
+- After the bump, `pip-audit --strict -r requirements.txt` reports **no known vulnerabilities**; the security-audit run on `main` (#66) is green again. `DEPENDENCIES.md` version headings synced.
+
+---
+
 ## [0.3.10] — 2026-05-27
 
 This release is a UX-only update aimed squarely at the Docker Desktop "Run an image" workflow, where the host port is not published unless the user expands the Optional settings panel — a step most people miss, leaving them with `ERR_CONNECTION_REFUSED` on `localhost:8000` and the misleading `Uvicorn running on http://0.0.0.0:8000` line as their only clue. Two fixes ship together:
