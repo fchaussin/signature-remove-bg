@@ -26,7 +26,7 @@ All Python dependencies are pinned in `requirements.txt` for reproducible builds
 - **How**: Implicit — FastAPI imports it internally when handling file uploads. Not imported directly in `backend/app.py`.
 - **Watch out**: This is a mandatory peer dependency of FastAPI for file uploads. If removed, `/extract` will crash at runtime with an import error.
 
-### Pillow `12.3.0`
+### Pillow `13.0.0`
 
 - **Why**: Image loading, format conversion (RGB/RGBA), verification (`image.verify()`), and output encoding (PNG/WebP).
 - **How**: Used in `backend/app.py` (`extract_signature()` and `open_image()`). Also provides `Image.MAX_IMAGE_PIXELS` for decompression bomb protection.

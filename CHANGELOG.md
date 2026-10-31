@@ -2,6 +2,16 @@
 
 All notable changes since v0.1.2.
 
+## [0.3.12] — 2026-10-31
+
+Security patch. Bumps Pillow to clear the 36 known vulnerabilities flagged by the weekly `pip-audit` workflow (failing since 2026-10-26). No runtime behaviour change — the backend only uses `Image.open`, `Image.new`, `Image.fromarray` and `MAX_IMAGE_PIXELS`, and the full test suite (146 tests) passes on Pillow 13.
+
+### Security
+- **Pillow `12.3.0` → `13.0.0`** — 36 CVEs, chiefly malformed-file parsing issues: decompression-bomb check bypasses (e.g. GIF `seek()` keeping a rejected frame size, CVE-2026-112400) and unbounded recursion in `PdfParser` when appending to a crafted PDF (CVE-2026-112895).
+- After the bump, `pip-audit --strict -r requirements.txt` reports **no known vulnerabilities**. `DEPENDENCIES.md` version heading synced.
+
+---
+
 ## [0.3.11] — 2026-07-29
 
 Security patch. Bumps three pinned dependencies to clear the 26 known vulnerabilities flagged by the weekly `pip-audit` workflow, which had been failing since 2026-06-22. No runtime behaviour change — resolution stays compatible with `fastapi==0.136.3` and the full test suite (146 tests) passes.
